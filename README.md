@@ -1,7 +1,9 @@
 # openvino-object-detection
 Docker Openvino implementation in python
-## Download the image
-## Run the image with the directory for  share   
+## Download the Docker  image
+## Run the image with the directory for  share 
+## The share direcotry should be downloaded the git open_model_zoo
+git clone https://github.com/openvinotoolkit/open_model_zoo.git
 apt-get install libeigen3-dev
 python3 -m pip install -r requirements.txt
 

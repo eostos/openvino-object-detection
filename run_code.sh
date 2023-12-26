@@ -4,4 +4,4 @@
 #python3 object_detection_demo.py -m models/vehicle-license-plate-detection-barrier-0106.xml    rtsp://10.71.71.32:8554/24-122475b3-2ca0-48ad-be7b-ccde44ed50e7/1 -at ssd  
 #python3 object_detection_demo.py -m  models/ssdlite_mobilenet_v2.xml   -i  rtsp://127.0.0.1:8554/lpr -at ssd 
 #python3 object_detection_demo.py -m  models/ssdlite_mobilenet_v2.xml   -i  rtsp://10.71.71.32:8554/24-122475b3-2ca0-48ad-be7b-ccde44ed50e7/1 -at ssd  
-python3 object_detection_demo.py -m  models/face-detection-retail-0004.xml   -i   rtsp://127.0.0.1:8554/lpr -at ssd  
+python3 object_detection_demo.py 

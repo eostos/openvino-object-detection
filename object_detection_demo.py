@@ -27,8 +27,10 @@ import cv2
 import util
 import time
 import numpy as np
-from util import get_car, read_license_plate, write_csv
+import json
+#from util import get_car, read_license_plate, write_csv
 import pdb
+import redis
 
 
 resolved_path = Path(__file__).resolve()
@@ -63,15 +65,15 @@ def build_argparser():
     parser = ArgumentParser(add_help=False)
     args = parser.add_argument_group('Options')
     args.add_argument('-h', '--help', action='help', default=SUPPRESS, help='Show this help message and exit.')
-    args.add_argument('-m', '--model', required=True,
+    args.add_argument('-m', '--model', required=False,
                       help='Required. Path to an .xml file with a trained model '
                            'or address of model inference service if using ovms adapter.')
     available_model_wrappers = [name.lower() for name in DetectionModel.available_wrappers()]
     args.add_argument('-at', '--architecture_type', help='Required. Specify model\' architecture type.',
-                      type=str, required=True, choices=available_model_wrappers)
+                      type=str, required=False, choices=available_model_wrappers)
     args.add_argument('--adapter', help='Optional. Specify the model adapter. Default is openvino.',
                       default='openvino', type=str, choices=('openvino', 'ovms'))
-    args.add_argument('-i', '--input', required=True,
+    args.add_argument('-i', '--input', required=False,
                       help='Required. An input to process. The input must be a single image, '
                            'a folder of images, video file or camera id.')
     args.add_argument('-d', '--device', default='CPU', type=str,
@@ -121,7 +123,7 @@ def build_argparser():
     io_args.add_argument('-limit', '--output_limit', required=False, default=1000, type=int,
                          help='Optional. Number of frames to store in output. '
                               'If 0 is set, all frames are stored.')
-    io_args.add_argument('--no_show', help="Optional. Don't show output.", action='store_true')
+    io_args.add_argument('--debug', help="Optional. Don't show output.", action='store_true')
     io_args.add_argument('--output_resolution', default=None, type=resolution,
                          help='Optional. Specify the maximum output window resolution '
                               'in (width x height) format. Example: 1280x720. '
@@ -177,7 +179,30 @@ def print_raw_results(detections, labels, frame_id):
 
 
 def main():
-
+####################
+ 
+    # Open json file
+    # TODO: add guards to getConfig
+    # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
+    ConfParams = util.getConfigs('./config.json')
+    if ConfParams:
+        print(ConfParams)
+        # Parse the JSON string into a dictionary
+    try:
+        conf_dict = json.loads(ConfParams)
+        vid_path = conf_dict['vid_path']
+        model_path = conf_dict['model']#it replaced the args.model
+        architecture_type = conf_dict['architecture_type']#it replaced the args.model
+        debug = conf_dict['debug']
+        ip_redis = conf_dict['ip_redis']
+        port_redis = conf_dict['port_redis']
+        device_id = conf_dict['device_id']
+    except json.JSONDecodeError:
+        print("Error: Failed to parse the configuration parameters.")
+    except KeyError:
+        print("Error: 'vid_path' not found in the configuration parameters.")
+    connect_redis= redis.Redis(host=ip_redis, port=port_redis)
+####################
     args = build_argparser().parse_args()
     if args.architecture_type != 'yolov4' and args.anchors:
         log.warning('The "--anchors" option works only for "-at==yolov4". Option will be omitted')
@@ -186,14 +211,15 @@ def main():
     if args.architecture_type not in ['nanodet', 'nanodet-plus'] and args.num_classes:
         log.warning('The "--num_classes" option works only for "-at==nanodet" and "-at==nanodet-plus". Option will be omitted')
 
-    cap = open_images_capture(args.input, args.loop)
-
+    cap = open_images_capture(vid_path, args.loop)
+    #print("args.input-------",vid_path)
+    #print("args.model-------",model_path)
     if args.adapter == 'openvino':
         plugin_config = get_user_config(args.device, args.num_streams, args.num_threads)
-        model_adapter = OpenvinoAdapter(create_core(), args.model, device=args.device, plugin_config=plugin_config,
+        model_adapter = OpenvinoAdapter(create_core(), model_path, device=args.device, plugin_config=plugin_config,
                                         max_num_requests=args.num_infer_requests, model_parameters = {'input_layouts': args.layout})
     elif args.adapter == 'ovms':
-        model_adapter = OVMSAdapter(args.model)
+        model_adapter = OVMSAdapter(model_path)
 
     configuration = {
         'resize_type': args.resize_type,
@@ -205,7 +231,7 @@ def main():
         'input_size': args.input_size, # The CTPN specific
         'num_classes': args.num_classes, # The NanoDet and NanoDetPlus specific
     }
-    model = DetectionModel.create_model(args.architecture_type, model_adapter, configuration)
+    model = DetectionModel.create_model(architecture_type, model_adapter, configuration)
     model.log_layers_info()
 
     detector_pipeline = AsyncPipeline(model)
@@ -238,7 +264,7 @@ def main():
 
             presenter.drawGraphs(frame)
             rendering_start_time = perf_counter()
-            frame = draw_detections(frame, objects, palette, model.labels, output_transform)
+            #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
 ###################            
             #frame = output_transform.resize(frame)
             detections_= []
@@ -246,7 +272,7 @@ def main():
                 class_id = int(detection.id)
                 color = palette[class_id]
                 det_label = model.labels[class_id] if model.labels and len(model.labels) >= class_id else '{}'.format(class_id)
-                print(det_label)
+                #print(det_label)
                 xmin, ymin, xmax, ymax = detection.get_coords()
                 xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
                 cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
@@ -275,7 +301,7 @@ def main():
             except Exception as e:
                 print("error ",e)
             tracks = tracker.get_tracks(0)
-            print(tracks)
+            #print(tracks)
             for j in range(len(tracks)):
                     obj_id,xcar1, ycar1, xcar2, ycar2 = tracks[j]
                     #    #j = j.astype(np.int32)
@@ -317,17 +343,20 @@ def main():
                 video_writer.write(frame)
             next_frame_id_to_show += 1
 
-            if not args.no_show:
+            util.send_video(frame,connect_redis,device_id)
+
+            if args.debug:
                 cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                 cv2.imshow('Detection Results', frame)
                 key = cv2.waitKey(1)
-
+            continue
+            
                 #ESC_KEY = 27
                 # Quit.
             #    if key in {ord('q'), ord('Q'), ESC_KEY}:
                    # break
             #    presenter.handleKey(key)
-            continue
+        
 
         if detector_pipeline.is_ready():
             # Get new image/frame
@@ -370,7 +399,7 @@ def main():
 
         presenter.drawGraphs(frame)
         rendering_start_time = perf_counter()
-        frame = draw_detections(frame, objects, palette, model.labels, output_transform)
+        #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
         render_metrics.update(rendering_start_time)
         metrics.update(start_time, frame)
 

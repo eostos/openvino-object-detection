@@ -1,8 +1,15 @@
 import string
-import easyocr
+import threading
+import base64
+import json
+import json
+import os
+import redis
+import cv2
+#import easyocr
 
 # Initialize the OCR reader
-reader = easyocr.Reader(['en'], gpu=False)
+#reader = easyocr.Reader(['en'], gpu=False)
 
 # Mapping dictionaries for character conversion
 dict_char_to_int = {'O': '0',
@@ -19,6 +26,18 @@ dict_int_to_char = {'0': 'O',
                     '6': 'G',
                     '5': 'S'}
 
+def send_video(image, connect_redis,device_id):
+    # Resize the image to 320x240
+    resized_image = cv2.resize(image, (320, 240))
+    # Crop the bottom half of the image
+    H = resized_image.shape[0]
+    displ = resized_image[H//2:H, :, :]
+    # Convert image to JPEG format
+    jpg_string = cv2.imencode('.jpg', displ)[1]
+    # Encode the image in base64
+    encoded_string = base64.b64encode(jpg_string)
+    # Publish to Redis
+    connect_redis.publish("lpr_streaming_"+device_id, encoded_string)
 
 def write_csv(results, output_path):
     """
@@ -105,28 +124,28 @@ def format_license(text):
     return license_plate_
 
 
-def read_license_plate(license_plate_crop):
-    """
-    Read the license plate text from the given cropped image.
+# def read_license_plate(license_plate_crop):
+#     """
+#     Read the license plate text from the given cropped image.
 
-    Args:
-        license_plate_crop (PIL.Image.Image): Cropped image containing the license plate.
+#     Args:
+#         license_plate_crop (PIL.Image.Image): Cropped image containing the license plate.
 
-    Returns:
-        tuple: Tuple containing the formatted license plate text and its confidence score.
-    """
+#     Returns:
+#         tuple: Tuple containing the formatted license plate text and its confidence score.
+#     """
 
-    detections = reader.readtext(license_plate_crop)
+#     detections = reader.readtext(license_plate_crop)
 
-    for detection in detections:
-        bbox, text, score = detection
+#     for detection in detections:
+#         bbox, text, score = detection
 
-        text = text.upper().replace(' ', '')
+#         text = text.upper().replace(' ', '')
 
-        if license_complies_format(text):
-            return format_license(text), score
+#         if license_complies_format(text):
+#             return format_license(text), score
 
-    return None, None
+#     return None, None
 
 
 def get_car(license_plate, vehicle_track_ids):
@@ -155,3 +174,62 @@ def get_car(license_plate, vehicle_track_ids):
         return vehicle_track_ids[car_indx]
 
     return -1, -1, -1, -1, -1
+# Handler Params
+
+################################################
+################################################
+
+
+def getConfigs(file_path):
+    try:
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"The file at {file_path} does not exist.")
+
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+
+            # Extracting fields
+            manager_id = data['manager_id']
+            device_id = data['device_id']
+            ip_redis = data['ip_redis']
+            port_redis = data['port_redis']
+            ip_rest = data['ip_rest']
+            vid_path = data['vid_path']
+            fps = data['fps']
+            ocr_port = data['ocr_port']
+            alter_config_roi_scale = data['alter-config']['roi_scale']
+            use_OCR = data['use_OCR']
+            model = data['model']
+            debug = data['debug']
+            architecture_type=data['architecture_type']
+
+            extracted_fields = {
+                'manager_id': manager_id,
+                'device_id': device_id,
+                'ip_redis': ip_redis,
+                'port_redis': port_redis,
+                'ip_rest': ip_rest,
+                'vid_path': vid_path,
+                'debug':debug,
+                'fps': fps,
+                'ocr_port': ocr_port,
+                'alter_config_roi_scale': alter_config_roi_scale,
+                'use_OCR': use_OCR,
+                'model': model,
+                'architecture_type':architecture_type
+            }
+
+            return json.dumps(extracted_fields, indent=4)
+
+    except FileNotFoundError as e:
+        print(f"File Error: {e}")
+        return None
+    except KeyError as e:
+        print(f"Error: Missing field in JSON data - {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON data, PLEASE VERIFY IT - {e}")
+        return None
+
+

@@ -1,7 +1,9 @@
-opencv-python
+libopencv-dev
 scipy>=1.5.4
 numpy>=1.16.6
 pillow>=8.1.2
 openvino-dev
 filterpy==1.4.5
 sort-tracker
+redis
+numpy

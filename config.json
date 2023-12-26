@@ -1,0 +1,132 @@
+{
+    "id": "1",
+    "manager_id": "a409e28e-d973-4ad5-a1ef-cfc26c1a5a20",
+    "device_id": "34704857-f746-43b7-a35a-562ddd732590",
+    "top_vid_path": "",
+    "ip_stream": "127.0.0.1",
+    "port_stream": 5556,
+    "videoEvidence": 0,
+    "videoDuration": 3,
+    "fps_top": 20,
+    "use_overview": 0,
+    "port_overview": 29001,
+    "vid_path": "rtsp://127.0.0.1:8554/lpr",
+    "ip_rest": "http://127.0.0.1:9090/api/events",
+    "model":"models/ssdlite_mobilenet_v2.xml",
+    "architecture_type":"ssd",
+    "port_rest": 9090,
+    "ip_redis": "127.0.0.1",
+    "port_redis": 6379,
+    "entry_type": null,
+    "debug": 0,
+    "speed_sensor": 0,
+    "speed_limit": -1,
+    "fps": 20,
+    "plates_proc": 3,
+    "use_subdet_only": 1,
+    "recog_all": 1,
+    "use_cascade": 0,
+    "step_udp_stream": 6,
+    "ocr_port": 15802,
+    "car-config": {
+        "scales": [
+            0.7,
+            0.46,
+            0.35
+        ],
+        "score": -1,
+        "roi_limits": [
+            0,
+            0.2,
+            1,
+            0.95
+        ],
+        "fast_mode": 0,
+        "fhogx": 64,
+        "fhogy": 64
+    },
+    "plate-config": {
+        "scales": [
+            0.15,
+            0.19,
+            0.23,
+            0.29
+        ],
+        "score": -0.5,
+        "roi_limits": [
+            0.1,
+            0.6,
+            0.9,
+            1
+        ],
+        "fast_mode": 0,
+        "fhogx": 48,
+        "fhogy": 24
+    },
+    "alter-config": {
+        "scales": [
+            0.0592,
+            0.015,
+            0.014
+        ],
+        "score": -0.05,
+        "roi_limits": [
+            0.0032,
+            0.53,
+            0.882,
+            0.8523
+        ],
+        "fast_mode": 0,
+        "fhogx": 48,
+        "fhogy": 24,
+        "roi_scale": {
+            "left": "0.2212",
+            "top": "0.3600",
+            "width": 0.2804,
+            "height": 0.408,
+            "scale": 0.0592
+        }
+    },
+    "ModBus": 0,
+    "port_server_modbus": 10001,
+    "useLanes": 1,
+    "laneConfig": "configs/config.json",
+    "use_OCR": 1,
+    "wb_violation": null,
+    "wb_vio_time": 1,
+    "quadrants": [
+        1,
+        2
+    ],
+    "white_box_limits": [
+        0.00326,
+        0.28738,
+        0.99891,
+        0.60971
+    ],
+    "gpu_device": null,
+    "decoding_type": "H264",
+    "lanes_config": {
+        "lanes_id": "1",
+        "lane1": null,
+        "type1": null,
+        "turn1": null,
+        "lane2": null,
+        "type2": null,
+        "turn2": null,
+        "lane3": null,
+        "type3": null,
+        "turn3": null,
+        "lane4": null,
+        "type4": null,
+        "turn4": null,
+        "lane5": null,
+        "type5": null,
+        "turn5": null,
+        "lane6": null,
+        "type6": null,
+        "turn6": null,
+        "street_cam": null,
+        "top_view_cam": null
+    }
+}

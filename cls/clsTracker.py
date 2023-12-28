@@ -1,5 +1,7 @@
+from typing import Any
 import cv2
 import numpy as np
+import time
 
 class Tracker:
     
@@ -10,6 +12,10 @@ class Tracker:
         self.id =  obj_id
         self.config = config
         self.pred(frame,fn,track)
+        self.current_timestamp = time.time()
+        self.updated_timestamp = time.time()
+        
+
         
     
         
@@ -38,9 +44,16 @@ class Tracker:
         
     def update(self,track,frame):
         #self.pred(frame,self.prediction,track)
+        self.updated_timestamp = time.time()
         pass
-        
 
+    def checkIslive(self):
+        diff = time.time() - self.updated_timestamp
+        #print("diff : ",diff," ID : ",self.id)
+        return diff
+    
+    def getId(self):
+        return self.id
 
     def prepareJson(self,track):
         obj_id,xcar1, ycar1, xcar2, ycar2 = track

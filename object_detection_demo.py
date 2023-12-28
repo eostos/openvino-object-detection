@@ -36,14 +36,22 @@ import traceback
 
 
 
+
+
 resolved_path = Path(__file__).resolve()
 print("Resolved Path:", resolved_path)
 
 # Print all available parents
 for i, parent in enumerate(resolved_path.parents):
     print(f"Parent {i}: {parent}")
+
+
 sys.path.append(str(Path(__file__).resolve().parents[0] / 'open_model_zoo/demos/common/python'))
 sys.path.append(str(Path(__file__).resolve().parents[0] / 'open_model_zoo/demos/common/python/openvino/model_zoo'))
+sys.path.append(str(Path(__file__).resolve().parents[0] / 'httpOCRpy'))
+
+
+
 
 from model_api.models import DetectionModel, DetectionWithLandmarks, RESIZE_TYPES, OutputTransform
 from model_api.performance_metrics import PerformanceMetrics
@@ -54,8 +62,7 @@ import monitors
 from images_capture import open_images_capture
 from helpers import resolution, log_latency_per_stage
 from visualizers import ColorPalette
-
-
+from httpOCRpy.server import prediction 
 
 
 
@@ -184,17 +191,18 @@ def print_raw_results(detections, labels, frame_id):
 
 def main():
 ####################
- 
+   
     # Open json file
     # TODO: add guards to getConfig
     # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
     ConfParams = util.getConfigs('./config.json')
-    device = Device(ConfParams)
+    
     if ConfParams:
         print(ConfParams)
         # Parse the JSON string into a dictionary
     try:
         conf_dict = json.loads(ConfParams)
+        device = Device(conf_dict)
         vid_path = conf_dict['vid_path']
         model_path = conf_dict['model']#it replaced the args.model
         architecture_type = conf_dict['architecture_type']#it replaced the args.model
@@ -280,10 +288,11 @@ def main():
                 #print(det_label)
                 xmin, ymin, xmax, ymax = detection.get_coords()
                 recorte1 = frame[ymin:ymax, xmin:xmax]
+                """ 
                 try :
                     cv2.imshow('Recorte Deteector', recorte1)
                 except Exception as e:
-                    pass
+                    pass """
 
                 xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
                 cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
@@ -302,7 +311,7 @@ def main():
                             #print(detections_)
                 start_time = time.time()
                 if detections_ :
-                    tracker.run(np.asarray(detections_), 0)
+                    tracker.run(np.asarray(detections_), 2)
                     cycle_time = time.time() - start_time
                     total_time += cycle_time
 
@@ -312,17 +321,14 @@ def main():
             except Exception as e:
                 print("error ",e)
                 traceback.print_exc()
-            tracks = tracker.get_tracks(0)
-            #print(tracks,"track")
-            device.set_trackers(tracks,frame)
+            tracks = tracker.get_tracks(2)
+            
+            device.set_trackers(tracks,frame,prediction)
             
             for j in range(len(tracks)):
                     
                     obj_id,xcar1, ycar1, xcar2, ycar2 = tracks[j]
-                    #    #j = j.astype(np.int32)
-                    recorte = frame[ycar1:ycar2, xcar1:xcar2]
-                    
-
+                    #    #j = j.astype(np.int32
                     cv2.putText(frame, str(obj_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 2, color = (125, 246, 55),thickness = 2)
                     #print(int(xcar1), ycar1, xcar2, ycar2)
                             

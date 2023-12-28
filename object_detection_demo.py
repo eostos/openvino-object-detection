@@ -21,7 +21,7 @@ from argparse import ArgumentParser, SUPPRESS
 from pathlib import Path
 from time import perf_counter
 #from sort.sort import *
-#import sort
+import sort
 from collections import defaultdict
 import cv2
 import util
@@ -32,7 +32,6 @@ import json
 import pdb
 import redis
 from cls.clsDevice import Device
-from cls.sort import Sort
 import traceback
 
 
@@ -64,8 +63,8 @@ log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=
 #mot_tracker=Sort(max_age=5, min_hits=3,iou_threshold=0.3)
 # Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2
 # Default values are max_age = 3, min_hits = 1 and iou_threshold = 0.3
-#tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.2)
-tracker = Sort()
+tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.2)
+
 def build_argparser():
     parser = ArgumentParser(add_help=False)
     args = parser.add_argument_group('Options')
@@ -303,22 +302,58 @@ def main():
                             #print(detections_)
                 start_time = time.time()
                 if detections_ :
-                    print(detections_)
-                    tracks = tracker.update(np.asarray(detections_))
-                    tracks = tracks.astype(int)
-                    print(tracks)
+                    tracker.run(np.asarray(detections_), 0)
                     cycle_time = time.time() - start_time
                     total_time += cycle_time
-                    device.set_trackers(tracks,frame)
-                    for xmin, ymin, xmax, ymax, track_id in tracks:
-                        cv2.putText(img=frame, text=f"Id: {track_id}", org=(xmin, ymin-10), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2, color=(0,255,0), thickness=2)
-                        cv2.rectangle(img=frame, pt1=(xmin, ymin), pt2=(xmax, ymax), color=(0, 255, 0), thickness=2)
+
+                                #print(len(detections_))
+                        
+                            #print(tracks)                  
             except Exception as e:
                 print("error ",e)
                 traceback.print_exc()
-            #tracks = tracker.get_tracks(2)
+            tracks = tracker.get_tracks(0)
             #print(tracks,"track")
-        
+            device.set_trackers(tracks,frame)
+            
+            for j in range(len(tracks)):
+                    
+                    obj_id,xcar1, ycar1, xcar2, ycar2 = tracks[j]
+                    #    #j = j.astype(np.int32)
+                    recorte = frame[ycar1:ycar2, xcar1:xcar2]
+                    
+
+                    cv2.putText(frame, str(obj_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 2, color = (125, 246, 55),thickness = 2)
+                    #print(int(xcar1), ycar1, xcar2, ycar2)
+                            
+                    track = track_history[int(obj_id)]
+                    xcenter_coord=int(xcar1)+(int(xcar1)+int(xcar2))/2
+                    ycenter_coord=int(ycar1)+(int(ycar1)+int(ycar2))/2
+                    track.append((int(xcenter_coord),int(ycenter_coord)))  # x, y center point
+                    if len(track) > 3.0 :  # retain 90 tracks for 90 frames
+                        track.pop(0)
+
+                    #         # Draw the tracking lines
+                    points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+                    cv2.polylines(frame, [points], isClosed=False, color=(230, 230, 230), thickness=2)
+                    
+                # for j in range(len(tracks)):
+                #     xcar1, ycar1, xcar2, ycar2, car_id = track_ids[j]
+                #     #j = j.astype(np.int32)
+                #     cv2.putText(frame, str(car_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color = (125, 246, 55),thickness = 1)
+                #     #print(int(xcar1), ycar1, xcar2, ycar2, car_id)
+                        
+                #     track = track_history[int(car_id)]
+                #     xcenter_coord=int(xcar1)+(int(xcar1)+int(xcar2))/2
+                #     ycenter_coord=int(ycar1)+(int(ycar1)+int(ycar2))/2
+                #     track.append((int(xcar1),int(ycar1)))  # x, y center point
+                #     if len(track) > 30.0 :  # retain 90 tracks for 90 frames
+                #         track.pop(0)
+
+                #         # Draw the tracking lines
+                #     points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+                #     cv2.polylines(frame, [points], isClosed=False, color=(230, 230, 230), thickness=2)
+               
             render_metrics.update(rendering_start_time)
             metrics.update(start_time, frame)
 

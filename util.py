@@ -203,6 +203,10 @@ def getConfigs(file_path):
             model = data['model']
             debug = data['debug']
             architecture_type=data['architecture_type']
+            ocr_http = data['ocr_http']
+            ocr_ip = data['ocr_ip']
+
+
 
             extracted_fields = {
                 'manager_id': manager_id,
@@ -214,10 +218,13 @@ def getConfigs(file_path):
                 'debug':debug,
                 'fps': fps,
                 'ocr_port': ocr_port,
+                'ocr_http':ocr_http,
+                'ocr_ip':ocr_ip,
                 'alter_config_roi_scale': alter_config_roi_scale,
                 'use_OCR': use_OCR,
                 'model': model,
-                'architecture_type':architecture_type
+                'architecture_type':architecture_type,
+                
             }
 
             return json.dumps(extracted_fields, indent=4)

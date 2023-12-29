@@ -12,6 +12,7 @@ class Device:
 
     def set_trackers(self, tracks, frame, fn,detections_):
         self.asociaciones = []
+        
         if len(tracks)>0 and len(detections_)>0:
             for id_sort, *box_sort in tracks:
                 for box_detec in detections_:

@@ -302,6 +302,7 @@ def main():
                     for landmark in detection.landmarks:
                         landmark = output_transform.scale(landmark)
                         cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
+                    
                 if det_label=="1" : #1 is car 
                     #print(xmin, ymin, xmax, ymax, detection.score)
                     detections_.append([xmin, ymin, xmax, ymax,detection.score])

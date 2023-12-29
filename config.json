@@ -10,7 +10,7 @@
     "fps_top": 20,
     "use_overview": 0,
     "port_overview": 29001,
-    "vid_path": "rtsp://127.0.0.1:8554/lpr",
+    "vid_path": "rtsp://127.0.0.1:8554/juan",
     "ip_rest": "http://127.0.0.1:9090/api/events",
     "model":"models/ssdlite_mobilenet_v2.xml",
     "architecture_type":"ssd",
@@ -18,7 +18,7 @@
     "ip_redis": "127.0.0.1",
     "port_redis": 6379,
     "entry_type": null,
-    "debug": 0,
+    "debug": 1,
     "speed_sensor": 0,
     "speed_limit": -1,
     "fps": 20,
@@ -27,7 +27,10 @@
     "recog_all": 1,
     "use_cascade": 0,
     "step_udp_stream": 6,
+    "regular_expressions":[],
+    "ocr_http" :0,
     "ocr_port": 15802,
+    "ocr_ip":"http://10.71.71.36",
     "car-config": {
         "scales": [
             0.7,

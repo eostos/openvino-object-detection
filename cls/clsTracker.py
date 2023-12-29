@@ -217,8 +217,11 @@ class Tracker:
         
         path_full_photo=os.path.join(folder, namefile_full_photo)
         path_segment_photo= os.path.join(folder, namefile_segment)
-        cv2.imwrite(path_segment_photo, segment_photo)
-        cv2.imwrite(path_full_photo, full_photo)
+        try:
+            cv2.imwrite(path_segment_photo, segment_photo)
+            cv2.imwrite(path_full_photo, full_photo)
+        except Exception as e:
+            pass
         return {
             "full_photo":path_full_photo,
             "segment_photo":path_segment_photo,

@@ -41,7 +41,7 @@ class Tracker:
         self.forder =""
         self.plate_chars=""
         current_date = datetime.now()
-        print(confiden,self.confiden,"[CONFIDENCE]")
+        print(confiden,self.confiden,"[PROB_DET]")
         current_timestamp = int(time.time() * 1000)
         
         folder = "/opt/alice-media/lpr/{}/{}/{}/{}_{}".format(
@@ -131,7 +131,7 @@ class Tracker:
                     
                     self.plate_chars=  msg_out      
                 if self.config['debug']:
-                    print('msg_out: ', msg_out)
+                    print('msg_out: ', msg_out,self.confiden)
             
             getJson['plate_chars']= self.plate_chars
 
@@ -184,7 +184,8 @@ class Tracker:
             "host":deviceId,
             "plate_chars":"",
             "timestamp":evidence['timestamp'],
-            "speed":0
+            "speed":0,
+            "prob": self.confiden
         }
 
 

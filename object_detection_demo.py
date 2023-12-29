@@ -70,7 +70,7 @@ log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=
 #mot_tracker=Sort(max_age=5, min_hits=3,iou_threshold=0.3)
 # Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2
 # Default values are max_age = 3, min_hits = 1 and iou_threshold = 0.3
-tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.2)
+tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -322,8 +322,10 @@ def main():
                 print("error ",e)
                 traceback.print_exc()
             tracks = tracker.get_tracks(2)
+            #print(detections_,"dt")
+            #print(tracks,"tr")
             
-            device.set_trackers(tracks,frame,prediction)
+            device.set_trackers(tracks,frame,prediction,detections_)
             
             for j in range(len(tracks)):
                     

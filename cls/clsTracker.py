@@ -31,12 +31,12 @@ class Tracker:
         xcar1, ycar1, xcar2, ycar2 = track
         self.prediction  = fn
         self.track = track
-        self.id =  id
+        self.id =  int(id)
         self.config = config
         self.current_timestamp = time.time()
         self.updated_timestamp = time.time()
         self.issend = False
-        self.confiden=confiden
+        self.confiden=float(confiden)
         #self.confiden.append(confiden)
         self.forder =""
         self.plate_chars=""
@@ -60,12 +60,24 @@ class Tracker:
         
     
     def sendAG(self,bodyjson):
+        """                     {
+            category: 14,
+            full_photo: '/opt/alice-media/lpr/12_29_2023/9b88c195-ee41-4150-aa29-38fd20c9c211//19/1703879803892/1703879803892_fullImage.jpg',
+            host: '9b88c195-ee41-4150-aa29-38fd20c9c211',
+            plate_chars: '8603УВ',
+            segment_photo: '/opt/alice-media/lpr/12_29_2023/9b88c195-ee41-4150-aa29-38fd20c9c211//19/1703879803892/1703879803892_segment.jpg',
+            timestamp: '1703879803892'
+            } """
+        print(bodyjson,"bodyjson")
+        for key, value in bodyjson.items():
+            if isinstance(value, np.int32):
+                bodyjson[key] = int(value)
         try:
             url ="{}".format(self.config['ip_rest'])
             headers = {
                 'Content-Type': 'application/json', 
             }
-            response = requests.post(url, json=json.dumps(bodyjson,cls=CustomEncoder), headers=headers)
+            response = requests.post(url, json=bodyjson, headers=headers)
             print(response.text)
         except Exception as e:
             if self.config['debug']:
@@ -102,7 +114,7 @@ class Tracker:
         # Compare the area of the rectangle with 20% of the area of the frame
         percentage_of_frame = (area_rectangle / area_frame) * 100
         print( percentage_of_frame)
-        if percentage_of_frame >= 20/100 and frame is not None and self.confiden>0.67:
+        if percentage_of_frame >= 0.2 and frame is not None and self.confiden>0.67:
             
             getJson = self.prepareJson(track,frame)
 
@@ -144,7 +156,7 @@ class Tracker:
 
     def update(self,track,frame,id,confiden):
         xcar1, ycar1, xcar2, ycar2 = track
-        self.confiden=confiden
+        self.confiden=float(confiden)
         
         
         if not self.issend:
@@ -175,6 +187,7 @@ class Tracker:
             "type": "plate",
             "trackId": self.id,
             "devId": deviceId,
+            "deviceId":deviceId,
             "x":x,
             "y":y,
             "width":w,

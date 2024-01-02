@@ -223,6 +223,9 @@ def main():
         log.warning('The "--masks" option works only for "-at==yolov4". Option will be omitted')
     if args.architecture_type not in ['nanodet', 'nanodet-plus'] and args.num_classes:
         log.warning('The "--num_classes" option works only for "-at==nanodet" and "-at==nanodet-plus". Option will be omitted')
+    
+    fps_target = 30
+    frame_time = 1 / fps_target
 
     cap = open_images_capture(vid_path, args.loop)
     #print("args.input-------",vid_path)
@@ -262,6 +265,7 @@ def main():
 
     track_history = defaultdict(lambda: [])
     while True:
+        start_time = time.time()
         total_time = 0.0
         if detector_pipeline.callback_exceptions:
             raise detector_pipeline.callback_exceptions[0]
@@ -278,7 +282,7 @@ def main():
             presenter.drawGraphs(frame)
             rendering_start_time = perf_counter()
             #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
-###################            
+       
             #frame = output_transform.resize(frame)
             detections_= []
             for detection in objects:
@@ -411,6 +415,11 @@ def main():
         else:
             # Wait for empty request
             detector_pipeline.await_any()
+        elapsed_time = time.time() - start_time
+        wait_time = max(0, frame_time - elapsed_time)
+        time.sleep(wait_time)
+
+
 
     detector_pipeline.await_all()
     if detector_pipeline.callback_exceptions:

@@ -70,19 +70,8 @@ class Tracker:
             segment_photo: '/opt/alice-media/lpr/12_29_2023/9b88c195-ee41-4150-aa29-38fd20c9c211//19/1703879803892/1703879803892_segment.jpg',
             timestamp: '1703879803892'
             } """
-        print(bodyjson,"bodyjson")
-        for key, value in bodyjson.items():
-            if isinstance(value, np.int32):
-                bodyjson[key] = int(value)
+        #print(bodyjson,"bodyjson")
         
-        for key, value in bodyjson.items():
-            if isinstance(value, int):  # Checks for int64 as well
-                bodyjson[key] = int(value)  # Convert to standard Python int
-
-        for key in bodyjson:
-            if isinstance(bodyjson[key], (np.int64, np.int32)):  # Checking for NumPy integer types
-                bodyjson[key] = int(bodyjson[key])
-
 
         try:
             url ="{}".format(self.config['ip_rest'])
@@ -98,13 +87,18 @@ class Tracker:
 
     def predByHTTP(self, frame,bodyjson):
         try:
-            print("bodyJson",bodyjson)
+           
             url ="{}:{}".format(self.config['ocr_ip'],self.config['ocr_port'])
             headers = {
                 'Content-Type': 'application/json', 
             }
-            response = requests.post(url, json=json.dumps(bodyjson,cls=CustomEncoder), headers=headers)
-            print(response.text)
+            response = requests.post(url, json=bodyjson, headers=headers)
+            
+            msg = response.text.encode('latin1')
+            plate = msg.decode('utf-8')
+            
+
+            return plate
         except Exception as e:
             if self.config['debug']:
                 print(e)
@@ -134,7 +128,11 @@ class Tracker:
                 print("OCR REQUEST")
                 
                 self.plate_chars  = self.predByHTTP(frame,getJson)
-            
+                if(self.plate_chars is not None and len(self.plate_chars)>6):
+                    self.issend = True 
+                    getJson['plate_chars']= self.plate_chars
+                    getJson['segment_photo'] =  getJson['aux_segment_photo']
+                    self.sendAG(getJson)       
             else:
                
                 result = fn(frame,getJson)
@@ -154,13 +152,14 @@ class Tracker:
                     self.issend = True 
                     
                     self.plate_chars=  msg_out
-                    getJson['plate_chars']= self.plate_chars      
+                    getJson['plate_chars']= self.plate_chars
+                    self.sendAG(getJson)      
                 if self.config['debug']:
                     print('msg_out: ', msg_out,self.confiden)
             
            
 
-            self.sendAG(getJson)
+            
 
 
         else:
@@ -188,7 +187,8 @@ class Tracker:
 
     def prepareJson(self,track,frame):
         xcar1, ycar1, xcar2, ycar2 = track
-        segment_photo = frame[ycar1+self.padding:ycar2-self.padding, xcar1+self.padding:xcar2-self.padding]
+        
+        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
         evidence = self.generateFolders(frame,segment_photo)
 
         x = xcar1 +self.padding
@@ -207,6 +207,7 @@ class Tracker:
             "height":h,
             "full_photo":evidence['full_photo'],
             "segment_photo":evidence['segment_photo'],
+            "aux_segment_photo":evidence['segment_photo'],
             "host":deviceId,
             "plate_chars":"",
             "timestamp":str(evidence['timestamp']),
@@ -216,8 +217,21 @@ class Tracker:
 
 
         if(self.config['ocr_http']):
-            del datos["x"]
-            datos['segment_photo']=evidence['segment_photo']
+           
+            datos['segment_photo']=evidence['full_photo']
+        
+        for key, value in datos.items():
+            if isinstance(value, np.int32):
+                datos[key] = int(value)
+        
+        for key, value in datos.items():
+            if isinstance(value, int):  # Checks for int64 as well
+                datos[key] = int(value)  # Convert to standard Python int
+
+        for key in datos:
+            if isinstance(datos[key], (np.int64, np.int32)):  # Checking for NumPy integer types
+                datos[key] = int(datos[key])
+
             
         return datos
    

@@ -275,6 +275,8 @@ def main():
             objects, frame_meta = results
             frame = frame_meta['frame']
             start_time = frame_meta['start_time']
+            height_frame, width_frame, _ = frame.shape
+            padding =int(height_frame/5)
 
             if len(objects) and args.raw_output_message:
                 print_raw_results(objects, model.labels, next_frame_id_to_show)
@@ -282,7 +284,7 @@ def main():
             presenter.drawGraphs(frame)
             rendering_start_time = perf_counter()
             #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
-       
+
             #frame = output_transform.resize(frame)
             detections_= []
             for detection in objects:
@@ -291,7 +293,7 @@ def main():
                 det_label = model.labels[class_id] if model.labels and len(model.labels) >= class_id else '{}'.format(class_id)
                 #print(det_label)
                 xmin, ymin, xmax, ymax = detection.get_coords()
-                recorte1 = frame[ymin:ymax, xmin:xmax]
+                
                 """ 
                 try :
                     cv2.imshow('Recorte Deteector', recorte1)
@@ -299,17 +301,26 @@ def main():
                     pass """
 
                 xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
-                cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
-                            (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
+                #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
+                #cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
+                #            (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
                 if isinstance(detection, DetectionWithLandmarks):
                     for landmark in detection.landmarks:
                         landmark = output_transform.scale(landmark)
                         cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
                     
                 if det_label=="1" : #1 is car 
-                    #print(xmin, ymin, xmax, ymax, detection.score)
-                    detections_.append([xmin, ymin, xmax, ymax,detection.score])
+                    
+                  
+                    print(xmin, ymin, xmax, ymax, detection.score)
+                    print(xmin-padding, ymin-padding, xmax+padding, ymax+padding, detection.score)
+                    try:
+                        recorte1 = frame[ymin-padding:ymax+padding, xmin-padding:xmax+padding]
+                        #cv2.imshow("trac",recorte1)   
+                    except Exception as e:
+                        pass
+                    #cv2.imshow("trac",recorte1)
+                    detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,detection.score])
                     #print(detections_)
             try :
                 
@@ -330,7 +341,7 @@ def main():
             #print(detections_,"dt")
             #print(tracks,"tr")
             
-            device.set_trackers(tracks,frame,prediction,detections_)
+            device.set_trackers(tracks,frame,prediction,detections_,padding)
             
             for j in range(len(tracks)):
                     

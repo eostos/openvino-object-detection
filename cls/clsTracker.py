@@ -27,8 +27,9 @@ class Event:
 
 class Tracker:
     
-    def __init__(self,config, track, frame, fn,id,confiden):
+    def __init__(self,config, track, frame, fn,id,confiden,padding):
         xcar1, ycar1, xcar2, ycar2 = track
+        self.padding = padding
         self.prediction  = fn
         self.track = track
         self.id =  int(id)
@@ -40,6 +41,7 @@ class Tracker:
         #self.confiden.append(confiden)
         self.forder =""
         self.plate_chars=""
+        
         current_date = datetime.now()
         print(confiden,self.confiden,"[PROB_DET]")
         current_timestamp = int(time.time() * 1000)
@@ -72,6 +74,16 @@ class Tracker:
         for key, value in bodyjson.items():
             if isinstance(value, np.int32):
                 bodyjson[key] = int(value)
+        
+        for key, value in bodyjson.items():
+            if isinstance(value, int):  # Checks for int64 as well
+                bodyjson[key] = int(value)  # Convert to standard Python int
+
+        for key in bodyjson:
+            if isinstance(bodyjson[key], (np.int64, np.int32)):  # Checking for NumPy integer types
+                bodyjson[key] = int(bodyjson[key])
+
+
         try:
             url ="{}".format(self.config['ip_rest'])
             headers = {
@@ -141,11 +153,12 @@ class Tracker:
                 if(len(msg_out)>6):
                     self.issend = True 
                     
-                    self.plate_chars=  msg_out      
+                    self.plate_chars=  msg_out
+                    getJson['plate_chars']= self.plate_chars      
                 if self.config['debug']:
                     print('msg_out: ', msg_out,self.confiden)
             
-            getJson['plate_chars']= self.plate_chars
+           
 
             self.sendAG(getJson)
 
@@ -175,13 +188,17 @@ class Tracker:
 
     def prepareJson(self,track,frame):
         xcar1, ycar1, xcar2, ycar2 = track
-        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+        segment_photo = frame[ycar1+self.padding:ycar2-self.padding, xcar1+self.padding:xcar2-self.padding]
+        try:
+            cv2.imshow("a",segment_photo)
+        except Exception as s :
+            pass
         evidence = self.generateFolders(frame,segment_photo)
 
-        x = xcar1
-        y = ycar1
-        w = xcar2 - xcar1
-        h = ycar2 - ycar1
+        x = xcar1 +self.padding
+        y = ycar1 +self.padding
+        w = (xcar2-self.padding) - xcar1
+        h = (ycar2-self.padding) - ycar1
         deviceId = self.config['device_id']
         datos ={
             "type": "plate",
@@ -196,7 +213,7 @@ class Tracker:
             "segment_photo":evidence['segment_photo'],
             "host":deviceId,
             "plate_chars":"",
-            "timestamp":evidence['timestamp'],
+            "timestamp":str(evidence['timestamp']),
             "speed":0,
             "prob": self.confiden
         }

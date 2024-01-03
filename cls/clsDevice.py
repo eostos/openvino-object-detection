@@ -10,7 +10,7 @@ class Device:
         self.asociaciones = []
         pass
 
-    def set_trackers(self, tracks, frame, fn,detections_):
+    def set_trackers(self, tracks, frame, fn,detections_,padding):
         self.asociaciones = []
         
         if len(tracks)>0 and len(detections_)>0:
@@ -22,7 +22,7 @@ class Device:
                         if(self.tracks.get(id_sort, None)):
                             self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1])
                         else:
-                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1])
+                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding)
         
         for key in list(self.tracks.keys()):
             diff = self.tracks[key].checkIslive()

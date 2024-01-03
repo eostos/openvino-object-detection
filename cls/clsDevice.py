@@ -20,9 +20,9 @@ class Device:
                     if iou >= self.umbral_iou:
                         self.asociaciones.append((id_sort, box_detec[-1],box_sort))
                         if(self.tracks.get(id_sort, None)):
-                            self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1])
+                            self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1],box_detec)
                         else:
-                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding)
+                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec)
         
         for key in list(self.tracks.keys()):
             diff = self.tracks[key].checkIslive()

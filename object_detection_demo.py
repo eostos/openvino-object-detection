@@ -276,6 +276,7 @@ def main():
             frame = frame_meta['frame']
             start_time = frame_meta['start_time']
             height_frame, width_frame, _ = frame.shape
+           
             padding =int(height_frame/5)
 
             if len(objects) and args.raw_output_message:
@@ -308,12 +309,22 @@ def main():
                     
                   
                     print(xmin, ymin, xmax, ymax, detection.score)
-                    print(xmin-padding, ymin-padding, xmax+padding, ymax+padding, detection.score)
+                    #print(xmin-padding, ymin-padding, xmax+padding, ymax+padding, detection.score)
+                    width_rectangle = xmax - xmin
+                    height_rectangle = ymax - ymin
+                    xmin_padded= max(xmin-int(width_rectangle/2),0)
+                    ymin_padded= max(ymin-height_rectangle,0)
+                    xmax_padded= min(xmax+int(width_rectangle/2),width_frame)
+                    ymax_padded= min(ymax+height_rectangle,height_frame)
+
+
+
                     try:
-                        recorte1 = frame[ymin-padding:ymax+padding, xmin-padding:xmax+padding]
+                        #recorte1 = frame[ymin-height_rectangle:ymax+height_rectangle, xmin-int(width_rectangle/2):xmax+int(width_rectangle/2)]
+                        recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
                         #cv2.imshow("trac",recorte1)   
                     except Exception as e:
-                        pass
+                        print(e)
                     #cv2.imshow("trac",recorte1)
                     detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,detection.score])
                     #print(detections_)
@@ -386,7 +397,7 @@ def main():
                 cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                 cv2.imshow('Detection Results', frame)
                 
-                key = cv2.waitKey(1)
+                key = cv2.waitKey(0)
             continue
             
                 #ESC_KEY = 27

@@ -27,9 +27,10 @@ class Event:
 
 class Tracker:
     
-    def __init__(self,config, track, frame, fn,id,confiden,padding):
+    def __init__(self,config, track, frame, fn,id,confiden,padding,box_detec):
         xcar1, ycar1, xcar2, ycar2 = track
         self.padding = padding
+        self.box_detec = box_detec
         self.prediction  = fn
         self.track = track
         self.id =  int(id)
@@ -166,9 +167,10 @@ class Tracker:
             print("The selected region is less than 20% of the total area of the frame.")
 
 
-    def update(self,track,frame,id,confiden):
+    def update(self,track,frame,id,confiden,box_detec):
         xcar1, ycar1, xcar2, ycar2 = track
         self.confiden=float(confiden)
+        self.box_detec=box_detec
         
         
         if not self.issend:
@@ -186,15 +188,37 @@ class Tracker:
         return self.id
 
     def prepareJson(self,track,frame):
+        height_frame, width_frame, _ = frame.shape
         xcar1, ycar1, xcar2, ycar2 = track
+        xcar1 = xcar1+self.padding
+        ycar1 = ycar1+self.padding
+        xcar2 = xcar2 -self.padding
+        ycar2 = ycar2 - self.padding 
+
+        width_rectangle = xcar2 - xcar1
+        height_rectangle = ycar2 - ycar1
+
+        xmin_padded= max(xcar1-int(width_rectangle/2),0)
+        ymin_padded= max(ycar1-height_rectangle,0)
+        xmax_padded= min(xcar2+int(width_rectangle/2),width_frame)
+        ymax_padded= min(ycar2+height_rectangle,height_frame)
         
-        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+        segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
         evidence = self.generateFolders(frame,segment_photo)
 
-        x = xcar1 +self.padding
-        y = ycar1 +self.padding
-        w = (xcar2-self.padding) - xcar1
-        h = (ycar2-self.padding) - ycar1
+        x = xmin_padded
+        y = ymin_padded
+        w = xmax_padded - xmin_padded
+        h = ymax_padded - ymin_padded
+
+        ##print(x,y,w,h,"toocr")
+        ocr = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+
+        try:
+            pass
+           #cv2.imshow('toOCR',ocr)
+        except Exception as e:
+            print(e)
         deviceId = self.config['device_id']
         datos ={
             "type": "plate",

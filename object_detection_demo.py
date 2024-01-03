@@ -294,11 +294,6 @@ def main():
                 #print(det_label)
                 xmin, ymin, xmax, ymax = detection.get_coords()
                 
-                """ 
-                try :
-                    cv2.imshow('Recorte Deteector', recorte1)
-                except Exception as e:
-                    pass """
 
                 xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
                 #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
@@ -387,7 +382,7 @@ def main():
 
             util.send_video(frame,connect_redis,device_id)
 
-            if args.debug:
+            if debug:
                 cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                 cv2.imshow('Detection Results', frame)
                 

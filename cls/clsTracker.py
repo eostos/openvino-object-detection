@@ -189,10 +189,6 @@ class Tracker:
     def prepareJson(self,track,frame):
         xcar1, ycar1, xcar2, ycar2 = track
         segment_photo = frame[ycar1+self.padding:ycar2-self.padding, xcar1+self.padding:xcar2-self.padding]
-        try:
-            cv2.imshow("a",segment_photo)
-        except Exception as s :
-            pass
         evidence = self.generateFolders(frame,segment_photo)
 
         x = xcar1 +self.padding

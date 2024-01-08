@@ -1,4 +1,4 @@
-
+opencv-python
 scipy>=1.5.4
 numpy>=1.16.6
 pillow>=8.1.2
@@ -7,3 +7,5 @@ filterpy==1.4.5
 sort-tracker
 redis
 opencv-contrib-python
+requests
+loguru

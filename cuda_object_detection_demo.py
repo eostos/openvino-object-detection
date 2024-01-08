@@ -33,6 +33,10 @@ import pdb
 import redis
 from cls.clsDevice import Device
 import traceback
+import subprocess
+#import numpy as np
+import os
+import ffmpeg
 
 
 
@@ -71,6 +75,22 @@ log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=
 # Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2
 # Default values are max_age = 3, min_hits = 1 and iou_threshold = 0.3
 tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
+
+def process_frame_with_numpy(frame):
+    # Example NumPy operation: invert colors
+    return np.invert(frame)
+
+# Set up RTSP source
+rtsp_source = 'rtsp://Admin:1234@172.172.3.8/stream1'
+
+# Use ffmpeg-python to capture frames from the RTSP stream
+process = (
+    ffmpeg
+    .input(rtsp_source,hwaccel='cuda')
+    .output('pipe:', format='rawvideo', pix_fmt='rgb24')
+    .run_async(pipe_stdout=True)
+)
+
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -224,10 +244,23 @@ def main():
     if args.architecture_type not in ['nanodet', 'nanodet-plus'] and args.num_classes:
         log.warning('The "--num_classes" option works only for "-at==nanodet" and "-at==nanodet-plus". Option will be omitted')
     
-    fps_target = 30
-    frame_time = 1 / fps_target
+  
+    fps = 8
+    # Duraci      n de cada fotograma en segundos
+    frame_duration = 1.0 / fps
 
-    cap = open_images_capture(vid_path, args.loop)
+    # Specify your custom FFmpeg binary location
+    ffmpeg_bin_path = '/opt/ffmpeg/ffmpeg'
+    my_env = os.environ.copy()
+    my_env["LD_LIBRARY_PATH"] = "/opt/ffmpeg/libavdevice:/opt/ffmpeg/libavfilter:/opt/ffmpeg/libavformat/:/opt/ffmpeg/libavcodec/:/opt/ffmpeg/libswresample/:/opt/ffmpeg/libswscale/:/opt/ffmpeg/libavutil/:"
+
+    # Prepend this path to the system PATH
+    os.environ["PATH"] = ffmpeg_bin_path + os.pathsep + os.environ["PATH"]
+
+
+
+
+   # cap = open_images_capture(vid_path, args.loop)
     #print("args.input-------",vid_path)
     #print("args.model-------",model_path)
     if args.adapter == 'openvino':
@@ -303,7 +336,7 @@ def main():
                 if isinstance(detection, DetectionWithLandmarks):
                     for landmark in detection.landmarks:
                         landmark = output_transform.scale(landmark)
-                        cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
+                       #cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
                     
                 if det_label=="1" : #1 is car 
                     
@@ -353,7 +386,7 @@ def main():
                     
                     obj_id,xcar1, ycar1, xcar2, ycar2 = tracks[j]
                     #    #j = j.astype(np.int32
-                    cv2.putText(frame, str(obj_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 2, color = (125, 246, 55),thickness = 2)
+                    ##cv2.putText(frame, str(obj_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 2, color = (125, 246, 55),thickness = 2)
                     #print(int(xcar1), ycar1, xcar2, ycar2)
                             
                     track = track_history[int(obj_id)]
@@ -365,7 +398,7 @@ def main():
 
                     #         # Draw the tracking lines
                     points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
-                    cv2.polylines(frame, [points], isClosed=False, color=(230, 230, 230), thickness=2)
+                    ##cv2.polylines(frame, [points], isClosed=False, color=(230, 230, 230), thickness=2)
                     
                 # for j in range(len(tracks)):
                 #     xcar1, ycar1, xcar2, ycar2, car_id = track_ids[j]
@@ -405,12 +438,24 @@ def main():
             #    if key in {ord('q'), ord('Q'), ESC_KEY}:
                    # break
             #    presenter.handleKey(key)
-
+        
 
         if detector_pipeline.is_ready():
             # Get new image/frame
             start_time = perf_counter()
-            frame = cap.read()
+            in_bytes = process.stdout.read(1920 * 1080 * 3)
+            if not in_bytes:
+              break
+
+            # Convert read bytes to NumPy array
+            frame = np.frombuffer(in_bytes, np.uint8).reshape([1920, 1080, 3])
+
+
+
+             # Convert raw frame to numpy array and reshape to image
+            #frame=frame_buffer.copy()
+            #time.sleep(0.07)
+            #frame = cap.read()
             if frame is None:
                 if next_frame_id == 0:
                     raise ValueError("Can't read an image from the input")
@@ -422,7 +467,8 @@ def main():
                 else:
                     output_resolution = (frame.shape[1], frame.shape[0])
                 presenter = monitors.Presenter(args.utilization_monitors, 55,
-                                               (round(output_resolution[0] / 4), round(output_resolution[1] / 8)))
+              
+                                 (round(output_resolution[0] / 4), round(output_resolution[1] / 8)))
                 if args.output and not video_writer.open(args.output, cv2.VideoWriter_fourcc(*'MJPG'),
                                                          cap.fps(), output_resolution):
                     raise RuntimeError("Can't open video writer")
@@ -432,9 +478,14 @@ def main():
         else:
             # Wait for empty request
             detector_pipeline.await_any()
-        elapsed_time = time.time() - start_time
-        wait_time = max(0, frame_time - elapsed_time)
-        time.sleep(wait_time)
+
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        time_to_wait = frame_duration - elapsed_time
+
+        if time_to_wait > 0:
+            time.sleep(time_to_wait+2000)
 
 
 
@@ -442,36 +493,7 @@ def main():
     if detector_pipeline.callback_exceptions:
         raise detector_pipeline.callback_exceptions[0]
     # Process completed requests
-    for next_frame_id_to_show in range(next_frame_id_to_show, next_frame_id):
-        results = detector_pipeline.get_result(next_frame_id_to_show)
-        objects, frame_meta = results
-        frame = frame_meta['frame']
-        start_time = frame_meta['start_time']
-
-        if len(objects) and args.raw_output_message:
-            print_raw_results(objects, model.labels, next_frame_id_to_show)
-
-        presenter.drawGraphs(frame)
-        rendering_start_time = perf_counter()
-        #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
-        render_metrics.update(rendering_start_time)
-        metrics.update(start_time, frame)
-
-        if video_writer.isOpened() and (args.output_limit <= 0 or next_frame_id_to_show <= args.output_limit-1):
-            video_writer.write(frame)
-
-        #if not args.no_show:
-            #cv2.imshow('Detection Results', frame)
-            #key = cv2.waitKey()
-
-    metrics.log_total()
-    log_latency_per_stage(cap.reader_metrics.get_latency(),
-                          detector_pipeline.preprocess_metrics.get_latency(),
-                          detector_pipeline.inference_metrics.get_latency(),
-                          detector_pipeline.postprocess_metrics.get_latency(),
-                          render_metrics.get_latency())
-    for rep in presenter.reportMeans():
-        log.info(rep)
+  
 
 
 if __name__ == '__main__':

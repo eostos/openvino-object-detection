@@ -1,0 +1,7 @@
+classes= 37
+train  = /home/pjreddie/data/coco/trainvalno5k.txt
+#valid = data/coco_val_5k.list
+names = ./lib/ocr/colombia.names
+backup = /home/pjreddie/backup/
+eval=coco
+

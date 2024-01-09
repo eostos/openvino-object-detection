@@ -1,5 +1,6 @@
 {
     "id": "1",
+    "country":"mongolia",
     "manager_id": "a409e28e-d973-4ad5-a1ef-cfc26c1a5a20",
     "device_id": "34704857-f746-43b7-a35a-562ddd732590",
     "top_vid_path": "",
@@ -18,7 +19,7 @@
     "ip_redis": "127.0.0.1",
     "port_redis": 6379,
     "entry_type": null,
-    "debug": 1,
+    "debug": 0,
     "speed_sensor": 0,
     "speed_limit": -1,
     "fps": 20,
@@ -28,6 +29,7 @@
     "use_cascade": 0,
     "step_udp_stream": 6,
     "regular_expressions":[],
+    "device":"CPU",
     "ocr_http" :0,
     "ocr_port": 15802,
     "ocr_ip":"http://10.71.71.36",

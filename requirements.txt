@@ -9,3 +9,4 @@ redis
 opencv-contrib-python
 requests
 loguru
+pika

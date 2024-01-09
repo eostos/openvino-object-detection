@@ -33,7 +33,7 @@ import pdb
 import redis
 from cls.clsDevice import Device
 import traceback
-
+import os
 
 
 
@@ -62,7 +62,7 @@ import monitors
 from images_capture import open_images_capture
 from helpers import resolution, log_latency_per_stage
 from visualizers import ColorPalette
-from httpOCRpy.server import prediction 
+from httpOCRpy.server import OCR 
 
 
 
@@ -71,6 +71,12 @@ log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=
 # Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2
 # Default values are max_age = 3, min_hits = 1 and iou_threshold = 0.3
 tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
+
+def is_running_in_docker():
+    # Docker crea un archivo .dockerenv en la raíz del sistema de archivos del contenedor.
+    # La presencia de este archivo puede ser un buen indicador.
+    path = "/.dockerenv"
+    return os.path.exists(path)
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -195,7 +201,10 @@ def main():
     # Open json file
     # TODO: add guards to getConfig
     # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
-    ConfParams = util.getConfigs('./config.json')
+    if is_running_in_docker():
+        ConfParams = util.getConfigs('/opt/alice-lpr-cpu/config.json',True)
+    else:
+        ConfParams = util.getConfigs('./config.json')
     
     if ConfParams:
         print(ConfParams)
@@ -210,11 +219,15 @@ def main():
         ip_redis = conf_dict['ip_redis']
         port_redis = conf_dict['port_redis']
         device_id = conf_dict['device_id']
+        country = conf_dict['country']
+        devicearg  = conf_dict['device']
     except json.JSONDecodeError:
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:
         print("Error: 'vid_path' not found in the configuration parameters.")
     connect_redis= redis.Redis(host=ip_redis, port=port_redis)
+    ocr = OCR(country)
+    prediction=ocr.prediction
 ####################
     args = build_argparser().parse_args()
     if args.architecture_type != 'yolov4' and args.anchors:
@@ -231,8 +244,8 @@ def main():
     #print("args.input-------",vid_path)
     #print("args.model-------",model_path)
     if args.adapter == 'openvino':
-        plugin_config = get_user_config(args.device, args.num_streams, args.num_threads)
-        model_adapter = OpenvinoAdapter(create_core(), model_path, device=args.device, plugin_config=plugin_config,
+        plugin_config = get_user_config(devicearg, args.num_streams, args.num_threads)
+        model_adapter = OpenvinoAdapter(create_core(), model_path, device=devicearg, plugin_config=plugin_config,
                                         max_num_requests=args.num_infer_requests, model_parameters = {'input_layouts': args.layout})
     elif args.adapter == 'ovms':
         model_adapter = OVMSAdapter(model_path)
@@ -397,7 +410,7 @@ def main():
                 cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                 cv2.imshow('Detection Results', frame)
                 
-                key = cv2.waitKey(0)
+                key = cv2.waitKey(1)
             continue
             
                 #ESC_KEY = 27

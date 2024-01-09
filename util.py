@@ -180,7 +180,7 @@ def get_car(license_plate, vehicle_track_ids):
 ################################################
 
 
-def getConfigs(file_path):
+def getConfigs(file_path, is_docker=False):
     try:
         # Check if the file exists
         if not os.path.exists(file_path):
@@ -188,6 +188,9 @@ def getConfigs(file_path):
 
         with open(file_path, 'r') as file:
             data = json.load(file)
+            
+            if is_docker:
+                data = data[0]['params'][0]
 
             # Extracting fields
             manager_id = data['manager_id']
@@ -205,6 +208,8 @@ def getConfigs(file_path):
             architecture_type=data['architecture_type']
             ocr_http = data['ocr_http']
             ocr_ip = data['ocr_ip']
+            country = data['country']
+            device = data['device']
 
 
 
@@ -224,9 +229,11 @@ def getConfigs(file_path):
                 'use_OCR': use_OCR,
                 'model': model,
                 'architecture_type':architecture_type,
+                'country':country,
+                'device':device,
                 
             }
-
+            
             return json.dumps(extracted_fields, indent=4)
 
     except FileNotFoundError as e:

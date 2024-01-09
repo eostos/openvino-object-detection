@@ -104,6 +104,13 @@ class Tracker:
             if self.config['debug']:
                 print(e)
 
+    def clearResult(self,plate):
+        if 'PLATE' in plate:
+            return plate.replace('PLATE', '')
+        else:
+            return plate
+
+   
 
     def pred(self,frame,fn,track):
         xcar1, ycar1, xcar2, ycar2 = track
@@ -131,7 +138,7 @@ class Tracker:
                 self.plate_chars  = self.predByHTTP(frame,getJson)
                 if(self.plate_chars is not None and len(self.plate_chars)>6):
                     self.issend = True 
-                    getJson['plate_chars']= self.plate_chars
+                    getJson['plate_chars']= self.clearResult(self.plate_chars)
                     getJson['segment_photo'] =  getJson['aux_segment_photo']
                     self.sendAG(getJson)       
             else:
@@ -153,7 +160,7 @@ class Tracker:
                     self.issend = True 
                     
                     self.plate_chars=  msg_out
-                    getJson['plate_chars']= self.plate_chars
+                    getJson['plate_chars']= self.clearResult(self.plate_chars)
                     self.sendAG(getJson)      
                 if self.config['debug']:
                     print('msg_out: ', msg_out,self.confiden)
@@ -198,10 +205,10 @@ class Tracker:
         width_rectangle = xcar2 - xcar1
         height_rectangle = ycar2 - ycar1
 
-        xmin_padded= max(xcar1-int(width_rectangle/2),0)
-        ymin_padded= max(ycar1-height_rectangle,0)
-        xmax_padded= min(xcar2+int(width_rectangle/2),width_frame)
-        ymax_padded= min(ycar2+height_rectangle,height_frame)
+        xmin_padded= max(xcar1,0)
+        ymin_padded= max(ycar1,0)
+        xmax_padded= min(xcar2,width_frame)
+        ymax_padded= min(ycar2,height_frame)
         
         segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
         evidence = self.generateFolders(frame,segment_photo)
@@ -216,7 +223,8 @@ class Tracker:
 
         try:
             pass
-           #cv2.imshow('toOCR',ocr)
+            #cv2.imshow('toOCR',ocr)
+            #key = cv2.waitKey(1)
         except Exception as e:
             print(e)
         deviceId = self.config['device_id']

@@ -210,6 +210,10 @@ def getConfigs(file_path, is_docker=False):
             ocr_ip = data['ocr_ip']
             country = data['country']
             device = data['device']
+            factor_width =data['factor_width']
+            factor_height = data['factor_height']
+            prom_frame= data["prom_frame"]
+            treshold_plate = data["treshold_plate"]
 
 
 
@@ -231,6 +235,10 @@ def getConfigs(file_path, is_docker=False):
                 'architecture_type':architecture_type,
                 'country':country,
                 'device':device,
+                'factor_width':factor_width,
+                'factor_height':factor_height,
+                'prom_frame':prom_frame,
+                'treshold_plate':treshold_plate
                 
             }
             

@@ -26,6 +26,7 @@ class Device:
         
         for key in list(self.tracks.keys()):
             diff = self.tracks[key].checkIslive()
+            print(len(self.tracks),tracks)
             if diff > 2:
                 self.tracks.pop(self.tracks[key].getId())
 

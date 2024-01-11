@@ -44,7 +44,7 @@ class Tracker:
         self.plate_chars=""
         
         current_date = datetime.now()
-        print(confiden,self.confiden,"[PROB_DET]")
+        #print(confiden,self.confiden,"[PROB_DET]")
         current_timestamp = int(time.time() * 1000)
         
         folder = "/opt/alice-media/lpr/{}/{}/{}/{}_{}".format(
@@ -117,18 +117,18 @@ class Tracker:
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
         height_rectangle = ycar2 - ycar1
-        print( height_rectangle, width_rectangle)
+        #print( height_rectangle, width_rectangle)
         area_rectangle = width_rectangle * height_rectangle
 
         # Calculate the total area of the frame
         height_frame, width_frame, _ = frame.shape
-        print( height_frame, width_frame)
+        #print( height_frame, width_frame)
         area_frame = width_frame * height_frame
 
         # Compare the area of the rectangle with 20% of the area of the frame
         percentage_of_frame = (area_rectangle / area_frame) * 100
-        print( percentage_of_frame)
-        if percentage_of_frame >= 0.2 and frame is not None and self.confiden>0.67:
+        #print( percentage_of_frame)
+        if percentage_of_frame >= self.config['prom_frame'] and frame is not None and self.confiden>self.config['treshold_plate']:
             
             getJson = self.prepareJson(track,frame)
 
@@ -205,10 +205,11 @@ class Tracker:
         width_rectangle = xcar2 - xcar1
         height_rectangle = ycar2 - ycar1
 
-        xmin_padded= max(xcar1,0)
-        ymin_padded= max(ycar1,0)
-        xmax_padded= min(xcar2,width_frame)
-        ymax_padded= min(ycar2,height_frame)
+
+        xmin_padded= max(xcar1-int(width_rectangle/int(self.config['factor_width'])),0)
+        ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
+        xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
+        ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
         
         segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
         evidence = self.generateFolders(frame,segment_photo)
@@ -221,12 +222,7 @@ class Tracker:
         ##print(x,y,w,h,"toocr")
         ocr = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
 
-        try:
-            pass
-            #cv2.imshow('toOCR',ocr)
-            #key = cv2.waitKey(1)
-        except Exception as e:
-            print(e)
+        
         deviceId = self.config['device_id']
         datos ={
             "type": "plate",

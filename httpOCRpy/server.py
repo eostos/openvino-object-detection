@@ -110,13 +110,11 @@ class OCR:
 					#decode base64 image
 					roi_img = full_plate[y_top:y_top+height,x_top:x_top+width]
 					#cv2.imshow("OCR",roi_img)
+					
 				else:
 					roi_img = full_plate
 				
 				try:
-					resz_roi_img = cv2.resize(roi_img, (net_size_X, net_size_Y), interpolation=cv2.INTER_CUBIC)
-
-
 
 					full_plate_draw = full_plate.copy()
 					plate = ocr_manager.Plate(full_plate)

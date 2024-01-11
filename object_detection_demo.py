@@ -305,7 +305,7 @@ def main():
                 class_id = int(detection.id)
                 color = palette[class_id]
                 det_label = model.labels[class_id] if model.labels and len(model.labels) >= class_id else '{}'.format(class_id)
-                print(det_label)
+                #print(det_label)
                 xmin, ymin, xmax, ymax = detection.get_coords()
                 
 
@@ -321,21 +321,27 @@ def main():
                 if det_label=="1" : #1 is car 
                     
                   
-                    print(xmin, ymin, xmax, ymax, detection.score)
+                    #print(xmin, ymin, xmax, ymax, detection.score)
                     #print(xmin-padding, ymin-padding, xmax+padding, ymax+padding, detection.score)
                     width_rectangle = xmax - xmin
                     height_rectangle = ymax - ymin
-                    xmin_padded= max(xmin-int(width_rectangle/2),0)
-                    ymin_padded= max(ymin-height_rectangle,0)
-                    xmax_padded= min(xmax+int(width_rectangle/2),width_frame)
-                    ymax_padded= min(ymax+height_rectangle,height_frame)
+                    """ if conf_dict['country']=='colombia':
+                        width_rectangle=int(width_rectangle/2)
+                        height_rectangle=int(height_rectangle/4)
+                    """
+                    xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
+                    ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
+                    xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
+                    ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
 
 
 
                     try:
-                        #recorte1 = frame[ymin-height_rectangle:ymax+height_rectangle, xmin-int(width_rectangle/2):xmax+int(width_rectangle/2)]
-                        recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-                        #cv2.imshow("trac",recorte1)   
+                        pass
+                        #print(ymin_padded,ymax_padded, xmin_padded,xmax_padded,"[coord]")
+                        #recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+
+                        #cv2.imshow("simulate ocr",recorte1)   
                     except Exception as e:
                         print(e)
                     #cv2.imshow("trac",recorte1)
@@ -348,54 +354,13 @@ def main():
                 if detections_ :
                     tracker.run(np.asarray(detections_), 2)
                     cycle_time = time.time() - start_time
-                    total_time += cycle_time
-
-                                #print(len(detections_))
-                        
-                            #print(tracks)                  
+                    total_time += cycle_time   
             except Exception as e:
                 print("error ",e)
                 traceback.print_exc()
             tracks = tracker.get_tracks(2)
-            #print(detections_,"dt")
-            #print(tracks,"tr")
-            
             device.set_trackers(tracks,frame,prediction,detections_,padding)
             
-            for j in range(len(tracks)):
-                    
-                    obj_id,xcar1, ycar1, xcar2, ycar2 = tracks[j]
-                    #    #j = j.astype(np.int32
-                    cv2.putText(frame, str(obj_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 2, color = (125, 246, 55),thickness = 2)
-                    #print(int(xcar1), ycar1, xcar2, ycar2)
-                            
-                    track = track_history[int(obj_id)]
-                    xcenter_coord=int(xcar1)+(int(xcar1)+int(xcar2))/2
-                    ycenter_coord=int(ycar1)+(int(ycar1)+int(ycar2))/2
-                    track.append((int(xcenter_coord),int(ycenter_coord)))  # x, y center point
-                    if len(track) > 3.0 :  # retain 90 tracks for 90 frames
-                        track.pop(0)
-
-                    #         # Draw the tracking lines
-                    points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
-                    cv2.polylines(frame, [points], isClosed=False, color=(230, 230, 230), thickness=2)
-                    
-                # for j in range(len(tracks)):
-                #     xcar1, ycar1, xcar2, ycar2, car_id = track_ids[j]
-                #     #j = j.astype(np.int32)
-                #     cv2.putText(frame, str(car_id),(int(xcar1),int(ycar2) - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color = (125, 246, 55),thickness = 1)
-                #     #print(int(xcar1), ycar1, xcar2, ycar2, car_id)
-                        
-                #     track = track_history[int(car_id)]
-                #     xcenter_coord=int(xcar1)+(int(xcar1)+int(xcar2))/2
-                #     ycenter_coord=int(ycar1)+(int(ycar1)+int(ycar2))/2
-                #     track.append((int(xcar1),int(ycar1)))  # x, y center point
-                #     if len(track) > 30.0 :  # retain 90 tracks for 90 frames
-                #         track.pop(0)
-
-                #         # Draw the tracking lines
-                #     points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
-                #     cv2.polylines(frame, [points], isClosed=False, color=(230, 230, 230), thickness=2)
                
             render_metrics.update(rendering_start_time)
             metrics.update(start_time, frame)
@@ -407,10 +372,10 @@ def main():
             util.send_video(frame,connect_redis,device_id)
 
             if debug:
-                cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
-                cv2.imshow('Detection Results', frame)
+                #cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
+                #cv2.imshow('Detection Results', frame)
                 
-                key = cv2.waitKey(1)
+                key = cv2.waitKey(0)
             continue
             
                 #ESC_KEY = 27

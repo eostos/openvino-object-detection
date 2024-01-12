@@ -58,7 +58,7 @@ class OCR:
 
 	def prediction(self,img,json_msg):
 
-		print(json_msg)
+		#print(json_msg)
 		tini = utils.current_milli_time()
 		predictions = self.doubleDetectionlocal(img,json_msg,self.net, self.classNames, self.USE_GPU)
 		tend = utils.current_milli_time()
@@ -117,7 +117,7 @@ class OCR:
 				try:
 
 					full_plate_draw = full_plate.copy()
-					plate = ocr_manager.Plate(full_plate)
+					#plate = ocr_manager.Plate(full_plate)
 					# PERFORM AN IMPROVED RESIZE
 					resz_roi_img = cv2.resize(roi_img, (net_size_X, net_size_Y), interpolation=cv2.INTER_CUBIC)
 					# Darkenet detection

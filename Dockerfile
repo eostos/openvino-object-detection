@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl gpg gpg-ag
 RUN curl https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
 RUN echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu focal-legacy main' | tee  /etc/apt/sources.list.d/intel.gpu.focal.list
 RUN apt-get update && apt-get install -y --no-install-recommends intel-opencl-icd intel-level-zero-gpu level-zero
+RUN apt install -y jq
 RUN apt-get update
 
 #USER root
@@ -37,7 +38,8 @@ RUN mkdir /opt/alice-lpr-cpu
 
 #RUN git clone https://github.com/abewley/sort.git
 #RUN git clone https://github.com/openvinotoolkit/open_model_zoo.git
-#RUN git clone git clone https://github.com/MrGolden1/sort-python.git
+##RUN git clone git clone https://github.com/MrGolden1/sort-python.git
+
 
 
 WORKDIR "/opt/alice-object/"

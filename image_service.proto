@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package imageservice;
+
+// El mensaje de solicitud contiene la imagen en forma de bytes.
+message ImageUploadRequest {
+    bytes image = 1;
+}
+
+// El mensaje de respuesta puede contener una confirmación o detalles adicionales.
+message ImageUploadResponse {
+    string message = 1;
+}
+
+// Definición del servicio
+service ImageService {
+    // Define un método para subir imágenes
+    rpc UploadImage(ImageUploadRequest) returns (ImageUploadResponse);
+}

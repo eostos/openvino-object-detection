@@ -34,8 +34,7 @@ import redis
 from cls.clsDevice import Device
 import traceback
 import os
-
-
+import threading
 
 
 resolved_path = Path(__file__).resolve()
@@ -63,6 +62,10 @@ from images_capture import open_images_capture
 from helpers import resolution, log_latency_per_stage
 from visualizers import ColorPalette
 from httpOCRpy.server import OCR 
+import image_service_pb2
+import image_service_pb2_grpc
+import grpc
+
 
 
 
@@ -197,7 +200,8 @@ def print_raw_results(detections, labels, frame_id):
 
 def main():
 ####################
-   
+    stub=None
+    channel=None
     # Open json file
     # TODO: add guards to getConfig
     # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
@@ -221,6 +225,9 @@ def main():
         device_id = conf_dict['device_id']
         country = conf_dict['country']
         devicearg  = conf_dict['device']
+        ocr_grcp_ip = conf_dict['ocr_grcp_ip']
+        ocr_grcp_port = conf_dict['ocr_grcp_port']
+        ocr_grcp        = conf_dict['ocr_grcp']
     except json.JSONDecodeError:
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:
@@ -228,6 +235,10 @@ def main():
     connect_redis= redis.Redis(host=ip_redis, port=port_redis)
     ocr = OCR(country)
     prediction=ocr.prediction
+    if ocr_grcp:
+        print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
+        channel = grpc.insecure_channel('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
+        stub = image_service_pb2_grpc.ImageServiceStub(channel)
 ####################
     args = build_argparser().parse_args()
     if args.architecture_type != 'yolov4' and args.anchors:
@@ -359,7 +370,8 @@ def main():
                 print("error ",e)
                 traceback.print_exc()
             tracks = tracker.get_tracks(2)
-            device.set_trackers(tracks,frame,prediction,detections_,padding)
+            threading.Thread(target=device.set_trackers, args=(tracks,frame,prediction,detections_,padding,stub)).start()
+            #device.set_trackers()
             
                
             render_metrics.update(rendering_start_time)
@@ -372,8 +384,8 @@ def main():
             util.send_video(frame,connect_redis,device_id)
 
             if debug:
-                #cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
-                #cv2.imshow('Detection Results', frame)
+                cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
+                cv2.imshow('Detection Results', frame)
                 
                 key = cv2.waitKey(0)
             continue
@@ -405,6 +417,7 @@ def main():
                                                          cap.fps(), output_resolution):
                     raise RuntimeError("Can't open video writer")
             # Submit for inference
+            
             detector_pipeline.submit_data(frame, next_frame_id, {'frame': frame, 'start_time': start_time})
             next_frame_id += 1
         else:
@@ -427,7 +440,8 @@ def main():
         start_time = frame_meta['start_time']
 
         if len(objects) and args.raw_output_message:
-            print_raw_results(objects, model.labels, next_frame_id_to_show)
+            pass
+            #print_raw_results(objects, model.labels, next_frame_id_to_show)
 
         presenter.drawGraphs(frame)
         rendering_start_time = perf_counter()

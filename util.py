@@ -213,7 +213,12 @@ def getConfigs(file_path, is_docker=False):
             factor_width =data['factor_width']
             factor_height = data['factor_height']
             prom_frame= data["prom_frame"]
+            ocr_grcp = data["ocr_grcp"]
+            ocr_grcp_port = data["ocr_grcp_port"]
+            ocr_grcp_ip = data["ocr_grcp_ip"]
             treshold_plate = data["treshold_plate"]
+            regular_expressions = data["regular_expressions"]
+            
 
 
 
@@ -238,7 +243,12 @@ def getConfigs(file_path, is_docker=False):
                 'factor_width':factor_width,
                 'factor_height':factor_height,
                 'prom_frame':prom_frame,
-                'treshold_plate':treshold_plate
+                'treshold_plate':treshold_plate,
+                'ocr_grcp_ip':ocr_grcp_ip,
+                'ocr_grcp_port':ocr_grcp_port,
+                'ocr_grcp':ocr_grcp,
+                'regular_expressions':regular_expressions
+
                 
             }
             

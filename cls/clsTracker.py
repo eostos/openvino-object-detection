@@ -8,7 +8,13 @@ import json
 import os
 from datetime import datetime
 import time
-
+import image_service_pb2
+import image_service_pb2_grpc
+import grpc
+import re
+import queue
+import threading
+from cls.interval import RepetitiveInterval
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -27,7 +33,7 @@ class Event:
 
 class Tracker:
     
-    def __init__(self,config, track, frame, fn,id,confiden,padding,box_detec):
+    def __init__(self,config, track, frame, fn,id,confiden,padding,box_detec,stub=None):
         xcar1, ycar1, xcar2, ycar2 = track
         self.padding = padding
         self.box_detec = box_detec
@@ -42,6 +48,10 @@ class Tracker:
         #self.confiden.append(confiden)
         self.forder =""
         self.plate_chars=""
+        self.stub = stub
+        self.queue = queue.Queue()
+        self.eval=None
+        self.RepetitiveInterval =RepetitiveInterval(1,self.recursivefn)
         
         current_date = datetime.now()
         #print(confiden,self.confiden,"[PROB_DET]")
@@ -56,12 +66,30 @@ class Tracker:
             )
         
         self.folder=folder
-        self.pred(frame,fn,track)
+        event = {
+                'frame': frame,
+                'prediction': self.prediction,
+                'track': track
+            }
         
         
-
         
-    
+        self.queue.put(event)
+        
+        
+        #self.recursivefn()        
+    def initRecursivefn(self):
+        self.eval = threading.Timer(1.0, self.initRecursivefn).start()
+        self.recursivefn()
+        
+        
+    def recursivefn(self):
+        event = self.queue.get()
+        self.pred(event['frame'],event['prediction'],event['track'])
+        if self.issend:
+            
+            self.eval=None
+          
     def sendAG(self,bodyjson):
         """                     {
             category: 14,
@@ -80,7 +108,7 @@ class Tracker:
                 'Content-Type': 'application/json', 
             }
             response = requests.post(url, json=bodyjson, headers=headers)
-            print(response.text)
+            #print(response.text)
         except Exception as e:
             if self.config['debug']:
                 print(e)
@@ -112,7 +140,16 @@ class Tracker:
 
    
 
+    def matches_any_regex(self,string, regexes):
+        # Iterate through each regular expression in the array
+        for regex in regexes:
+            # If the string matches the current regular expression
+            if re.match(regex, string):
+                return True
+        return False
+
     def pred(self,frame,fn,track):
+    
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -130,25 +167,51 @@ class Tracker:
         #print( percentage_of_frame)
         if percentage_of_frame >= self.config['prom_frame'] and frame is not None and self.confiden>self.config['treshold_plate']:
             
-            getJson = self.prepareJson(track,frame)
+            
 
             if(self.config['ocr_http']):
-                print("OCR REQUEST")
+                #print("OCR REQUEST")
+                getJson = self.prepareJson(track,frame)
                 
                 self.plate_chars  = self.predByHTTP(frame,getJson)
-                if(self.plate_chars is not None and len(self.plate_chars)>6):
-                    self.issend = True 
-                    getJson['plate_chars']= self.clearResult(self.plate_chars)
-                    getJson['segment_photo'] =  getJson['aux_segment_photo']
-                    self.sendAG(getJson)       
-            else:
+                if(self.plate_chars is not None):
+                    
+                    self.issend = self.matches_any_regex(self.plate_chars,self.config["regex"])
+                    if self.issend:                     
+                        getJson['plate_chars']= self.clearResult(self.plate_chars)
+                        getJson['segment_photo'] =  getJson['aux_segment_photo']
+                        self.sendAG(getJson)
+                        
+            elif self.config['ocr_grcp']:
+                if not self.issend:
+ 
+                    _, image_bytes = cv2.imencode('.jpg', self.getSegmentFrame(track,frame))
+                    future_response = self.stub.UploadImage.future(image_service_pb2.ImageUploadRequest(image=image_bytes.tostring()))       
+                    response = future_response.result()
+                    
                
+                    self.issend = self.matches_any_regex(response.message,self.config["regex"])
+                    print("reques  tracker ",self.id, " date ", self.current_timestamp, "result : ",response)
+
+                    if self.issend:
+                        self.plate_chars=  response.message
+                        getJson = self.prepareJson(track,frame)
+                        getJson['plate_chars']= self.clearResult(self.plate_chars)
+                        if  self.RepetitiveInterval is not None:
+                            self.RepetitiveInterval.stop()
+                            self.RepetitiveInterval = None
+                    
+                        self.sendAG(getJson)
+                
+                                                 
+            else:
+                getJson = self.prepareJson(track,frame)
                 result = fn(frame,getJson)
                 resul = []
                 for pred_i in result:
                     resul.append(pred_i[0])
                
-                print('resul: ', resul)
+                #print('resul: ', resul)
                 msg_out = 'EMPTY'
                 if len(result):
                     #msg_out = str(resul)
@@ -156,12 +219,13 @@ class Tracker:
                     msg_out = ''
                     for x in resul: 
                         msg_out += x
-                if(len(msg_out)>6):
-                    self.issend = True 
-                    
-                    self.plate_chars=  msg_out
-                    getJson['plate_chars']= self.clearResult(self.plate_chars)
-                    self.sendAG(getJson)      
+                
+                    self.issend = self.matches_any_regex(msg_out,self.config["regex"])
+                    if self.issend:
+                                        
+                        self.plate_chars=  msg_out
+                        getJson['plate_chars']= self.clearResult(self.plate_chars)
+                        self.sendAG(getJson)      
                 if self.config['debug']:
                     print('msg_out: ', msg_out,self.confiden)
             
@@ -171,8 +235,9 @@ class Tracker:
 
 
         else:
-            print("The selected region is less than 20% of the total area of the frame.")
-
+            pass
+            #print("The selected region is less than 20% of the total area of the frame.")
+        return self.issend
 
     def update(self,track,frame,id,confiden,box_detec):
         xcar1, ycar1, xcar2, ycar2 = track
@@ -181,8 +246,23 @@ class Tracker:
         
         
         if not self.issend:
+            event = {
+                'frame': frame,
+                'prediction': self.prediction,
+                'track': track
+            }
+            self.queue.put(event)
+            self.recursivefn()
+            if self.RepetitiveInterval is not None  and  not self.RepetitiveInterval.running:
+                self.RepetitiveInterval.running = True
+                self.RepetitiveInterval.start()
+                
+                
             
-            self.pred(frame,self.prediction,track)
+            
+            
+                                
+            #self.pred(frame,self.prediction,track)
         self.updated_timestamp = time.time()
         pass
 
@@ -193,6 +273,26 @@ class Tracker:
     
     def getId(self):
         return self.id
+    
+    def getSegmentFrame(self,track,frame):
+        height_frame, width_frame, _ = frame.shape
+        xcar1, ycar1, xcar2, ycar2 = track
+        xcar1 = xcar1+self.padding
+        ycar1 = ycar1+self.padding
+        xcar2 = xcar2 -self.padding
+        ycar2 = ycar2 - self.padding 
+
+        width_rectangle = xcar2 - xcar1
+        height_rectangle = ycar2 - ycar1
+
+
+        xmin_padded= max(xcar1-int(width_rectangle/int(self.config['factor_width'])),0)
+        ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
+        xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
+        ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
+        
+        segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+        return segment_photo
 
     def prepareJson(self,track,frame):
         height_frame, width_frame, _ = frame.shape

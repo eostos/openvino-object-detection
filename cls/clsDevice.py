@@ -1,5 +1,31 @@
 import cv2
 from cls.clsTracker import Tracker;
+import queue
+import re
+import json
+
+import re
+
+def generate_regex(example):
+    
+    if not isinstance(example, str):
+        raise ValueError("The example must be a string.")
+
+    # Count the number of digits at the beginning of the string
+    digits = re.match(r"^\d+", example)
+    if digits is None:
+        num_digits=0
+    num_digits = len(digits.group())
+
+    # Count the number of non-digit characters at the end
+    characters = re.match(r"^\d+([^\d]+)$", example)
+    if characters is None:
+        num_characters=0
+    num_characters = len(characters.group(1))
+
+    # Generate the regular expression
+    regex = r"^\d{" + str(num_digits) + r"}[^\d]{" + str(num_characters) + r"}$"
+    return regex
 
 class Device:
     
@@ -8,9 +34,14 @@ class Device:
         self.config = config
         self.umbral_iou= 0.1
         self.asociaciones = []
-        pass
+        
+        self.regex = []
+        for reg in self.config["regular_expressions"]:
+            self.regex.append(generate_regex(reg))
+        
+        self.config["regex"]= self.regex
 
-    def set_trackers(self, tracks, frame, fn,detections_,padding):
+    def set_trackers(self, tracks, frame, fn,detections_,padding,stub=None):
         self.asociaciones = []
         
         if len(tracks)>0 and len(detections_)>0:
@@ -19,14 +50,15 @@ class Device:
                     iou = self.calcular_iou(box_sort, box_detec[:-1])
                     if iou >= self.umbral_iou:
                         self.asociaciones.append((id_sort, box_detec[-1],box_sort))
+                        
                         if(self.tracks.get(id_sort, None)):
                             self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1],box_detec)
                         else:
-                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec)
+                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec,stub)
         
         for key in list(self.tracks.keys()):
             diff = self.tracks[key].checkIslive()
-            print(len(self.tracks),tracks)
+            #print(len(self.tracks),tracks)
             if diff > 2:
                 self.tracks.pop(self.tracks[key].getId())
 

@@ -10,3 +10,6 @@ opencv-contrib-python
 requests
 loguru
 pika
+protobuf
+grpcio
+grpcio-tools

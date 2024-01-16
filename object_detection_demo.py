@@ -464,6 +464,8 @@ def main():
                           render_metrics.get_latency())
     for rep in presenter.reportMeans():
         log.info(rep)
+        
+    sys.exit()
 
 
 if __name__ == '__main__':

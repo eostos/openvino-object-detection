@@ -7,24 +7,23 @@ import json
 import re
 
 def generate_regex(example):
-    
     if not isinstance(example, str):
         raise ValueError("The example must be a string.")
 
-    # Count the number of digits at the beginning of the string
-    digits = re.match(r"^\d+", example)
-    if digits is None:
-        num_digits=0
-    num_digits = len(digits.group())
+    # Buscar todas las secuencias de dígitos (\d) y no dígitos (\D)
+    sequences = re.findall(r"(\d+|\D+)", example)
 
-    # Count the number of non-digit characters at the end
-    characters = re.match(r"^\d+([^\d]+)$", example)
-    if characters is None:
-        num_characters=0
-    num_characters = len(characters.group(1))
+    # Construir la regex basada en las secuencias
+    regex_parts = []
+    for seq in sequences:
+        if seq.isdigit():
+            # Secuencia de dígitos
+            regex_parts.append(r"\d{" + str(len(seq)) + r"}")
+        else:
+            # Secuencia de no dígitos
+            regex_parts.append(r"\D{" + str(len(seq)) + r"}")
 
-    # Generate the regular expression
-    regex = r"^\d{" + str(num_digits) + r"}[^\d]{" + str(num_characters) + r"}$"
+    regex = "^" + "".join(regex_parts) + "$"
     return regex
 
 class Device:

@@ -205,29 +205,30 @@ class Tracker:
                 
                                                  
             else:
-                getJson = self.prepareJson(track,frame)
-                result = fn(frame,getJson)
-                resul = []
-                for pred_i in result:
-                    resul.append(pred_i[0])
-               
-                #print('resul: ', resul)
-                msg_out = 'EMPTY'
-                if len(result):
-                    #msg_out = str(resul)
-                    # traverse in the string  
-                    msg_out = ''
-                    for x in resul: 
-                        msg_out += x
+                if not self.issend:
+                    getJson = self.prepareJson(track,frame)
+                    result = fn(frame,getJson)
+                    resul = []
+                    for pred_i in result:
+                        resul.append(pred_i[0])
                 
-                    self.issend = self.matches_any_regex(msg_out,self.config["regex"])
-                    if self.issend:
-                                        
+                    #print('resul: ', resul)
+                    msg_out = 'EMPTY'
+                    if len(result):
+                        #msg_out = str(resul)
+                        # traverse in the string  
+                        msg_out = ''
+                        for x in resul: 
+                            msg_out += x
+                        msg_out = self.clearResult(msg_out)
+                        self.issend = self.matches_any_regex(msg_out,self.config["regex"])
+                        
+                                            
                         self.plate_chars=  msg_out
                         getJson['plate_chars']= self.clearResult(self.plate_chars)
                         self.sendAG(getJson)      
-                if self.config['debug']:
-                    print('msg_out: ', msg_out,self.confiden)
+                    if self.config['debug']:
+                        print('msg_out: ', msg_out,self.confiden)
             
            
 

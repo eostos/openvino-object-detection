@@ -80,7 +80,7 @@ pip3 install
         img = show_fps(img, fps)
         print(len(boxes))
         if len(boxes) >= 1 :
-           cv2.imwrite('output_image_'+str(cont)+".jpg", img)
+          #cv2.imwrite('output_image_'+str(cont)+".jpg", img)
            print('Image saved successfully.')   
         #cv2.imshow(WINDOW_NAME, img)
         toc = time.time()

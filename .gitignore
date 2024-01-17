@@ -1,4 +1,5 @@
 ./open_model_zoo
+./tensorrt_demos
 cls/__pycache__/clsDevice.cpython-310.pyc
 cls/__pycache__/clsTracker.cpython-310.pyc
 cls/__pycache__/clsDevice.cpython-310.pyc

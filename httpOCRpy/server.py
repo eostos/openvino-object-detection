@@ -44,6 +44,7 @@ class OCR:
 		self.namePath   = './httpOCRpy/lib/{}/{}.names'.format(country,country)
 		self.net		= None
 		self.classNames = None
+		self.country = country
 		self.USE_GPU	= USE_GPU
 		if not USE_GPU:
 			self.classNames = read_lines_class(self.namePath)
@@ -113,6 +114,8 @@ class OCR:
 					
 				else:
 					roi_img = full_plate
+					x_top = 0
+					y_top = 0
 				
 				try:
 
@@ -123,6 +126,7 @@ class OCR:
 					# Darkenet detection
 					# detections = detector.performDetectImg(img)
 					#print(USE_GPU,"USE_GPU")
+					#cv2.imwrite("/opt/alice-media/ocr/{}.jpg".format(utils.current_milli_time()), resz_roi_img)
 					detections = platePredict(net, classNames, resz_roi_img, USE_GPU)
 					
 					#print("not cordumped")
@@ -214,7 +218,7 @@ class OCR:
 			print('===END OCR PROCESS===')
 		# ORDER
 		if len(detections)>0:
-			dets_order = orderChars(detections)
+			dets_order = orderChars(detections,self.country)
 			
 
 			# REMOVE OVERLAPPED AND LOW QUALITY PLATES

@@ -215,7 +215,7 @@ def main():
         # Parse the JSON string into a dictionary
     try:
         conf_dict = json.loads(ConfParams)
-        device = Device(conf_dict)
+        device = Device(conf_dict,util.send_video)
         vid_path = conf_dict['vid_path']
         model_path = conf_dict['model']#it replaced the args.model
         architecture_type = conf_dict['architecture_type']#it replaced the args.model
@@ -251,7 +251,7 @@ def main():
     fps_target = 30
     frame_time = 1 / fps_target
 
-    cap = open_images_capture(vid_path, args.loop)
+    cap = open_images_capture(vid_path, True)
     #print("args.input-------",vid_path)
     #print("args.model-------",model_path)
     if args.adapter == 'openvino':
@@ -350,8 +350,8 @@ def main():
                     try:
                         pass
                         #print(ymin_padded,ymax_padded, xmin_padded,xmax_padded,"[coord]")
-                        #recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-
+                        recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+                        #util.send_video(recorte1,connect_redis,device_id)
                         #cv2.imshow("simulate ocr",recorte1)   
                     except Exception as e:
                         print(e)
@@ -456,7 +456,7 @@ def main():
             #cv2.imshow('Detection Results', frame)
             #key = cv2.waitKey()
 
-    metrics.log_total()
+    ##metrics.log_total()
     log_latency_per_stage(cap.reader_metrics.get_latency(),
                           detector_pipeline.preprocess_metrics.get_latency(),
                           detector_pipeline.inference_metrics.get_latency(),
@@ -465,7 +465,9 @@ def main():
     for rep in presenter.reportMeans():
         log.info(rep)
         
-    sys.exit()
+        
+    print("break while")    
+
 
 
 if __name__ == '__main__':

@@ -544,7 +544,7 @@ def addBorder(ratio, bound, maxBorder):
 	if DEBUG_HERE: print("bound_out ",bound_ext)
 	return bound_ext
 
-def orderChars(dets):
+def orderChars(dets,country):
 	# CONTAINER CONTENT: dets (nameTag, confidence, (x, y, width, height))
 	# CHECK LENGTH
 	N_BOXES = len(dets)
@@ -572,7 +572,10 @@ def orderChars(dets):
 	while len(dets)>0 and len(RESULT)<30:
 		#print('LETTERS IN: ', [det_i[0] for det_i in dets])
 		# FIND THE NEXT LETTER INDEX
-		IDX_next = findNextIndex(dets, RESULT, AVG_WID, AVG_HEI)
+		if country == "MN":
+			IDX_next = findNextIndex(dets, RESULT, AVG_WID, AVG_HEI)
+		else:
+			IDX_next = findNextIndexCR(dets, RESULT, AVG_WID, AVG_HEI)
 		# CONDITION IF IDX = -1
 		if IDX_next==-1:
 			# take good decision
@@ -588,6 +591,37 @@ def orderChars(dets):
 	BIT_ARRAY = [self.access_bit(OBJ_BYTES,i) for i in range(len(OBJ_BYTES)*8)]
 	OBJ_SPLIT = [BIT_ARRAY[i:i + 8] for i in range(0, len(BIT_ARRAY), 8)]
 	'''
+
+
+def findNextIndexCR(dets, RESULT, AVG_WID, AVG_HEI):
+	IDX_next = -1
+	if len(RESULT)==0:
+		# FIND THE FIRST LETTER (CLOSES TO THE ORIGIN)
+		IDX_next = getFirstChar_Index(dets)
+	else:
+		# OBTAIN THE LAST BOX IN THE TEMPORAL RESULT
+		last_box = RESULT[-1][2]
+		prev_dx = 1e5
+		prev_dy = prev_dx
+		for i in range(len(dets)):
+			#find next letter index
+			box_i_x, box_i_y = dets[i][2][0] , dets[i][2][1]
+			last_x, last_y = last_box[0] , last_box[1]
+			new_dx = box_i_x - last_x
+			new_dy = box_i_y - last_y
+			# FIND ITS CLOSEST LETTER DOWN THAT HAS NOT BEEN ORDERED
+			# IF NOT REMOVED FROM 'dets', IT CAN REPEAT THE PREVIOUS LETTER.
+			if (0 <= new_dy and new_dy < prev_dy):
+				# BUT DONT ACCEPT LETTERS THAT ARE TOO DISTANT IN THE X COORDINATE
+				if (new_dx < AVG_WID/2):
+					IDX_next = i
+					prev_dx = new_dx
+					prev_dy = new_dy
+		# JUMP TO THE NEXT ROW IF THERE ARE PENDING LETTERS
+		if IDX_next==-1:
+			IDX_next = getFirstChar_Index(dets)
+
+	return IDX_next
 
 def findNextIndex(dets, RESULT, AVG_WID, AVG_HEI):
 	IDX_next = -1

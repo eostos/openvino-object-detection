@@ -33,7 +33,7 @@ class Event:
 
 class Tracker:
     
-    def __init__(self,config, track, frame, fn,id,confiden,padding,box_detec,stub=None):
+    def __init__(self,config, track, frame, fn,id,confiden,padding,box_detec,stub=None,redis=None,send_video=None):
         xcar1, ycar1, xcar2, ycar2 = track
         self.padding = padding
         self.box_detec = box_detec
@@ -52,6 +52,10 @@ class Tracker:
         self.queue = queue.Queue()
         self.eval=None
         self.RepetitiveInterval =RepetitiveInterval(1,self.recursivefn)
+        self.badPrediction = []
+        self.redis =redis
+        self.send_video =send_video
+        
         
         current_date = datetime.now()
         #print(confiden,self.confiden,"[PROB_DET]")
@@ -75,15 +79,12 @@ class Tracker:
         
         
         self.queue.put(event)
+        self.RepetitiveInterval.running=True
+        self.RepetitiveInterval.start()
+
         
         
-        #self.recursivefn()        
-    def initRecursivefn(self):
-        self.eval = threading.Timer(1.0, self.initRecursivefn).start()
-        self.recursivefn()
-        
-        
-    def recursivefn(self):
+    def recursivefn(self):        
         event = self.queue.get()
         self.pred(event['frame'],event['prediction'],event['track'])
         if self.issend:
@@ -108,7 +109,7 @@ class Tracker:
                 'Content-Type': 'application/json', 
             }
             response = requests.post(url, json=bodyjson, headers=headers)
-            #print(response.text)
+            print(response.text)
         except Exception as e:
             if self.config['debug']:
                 print(e)
@@ -149,7 +150,6 @@ class Tracker:
         return False
 
     def pred(self,frame,fn,track):
-    
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -163,8 +163,13 @@ class Tracker:
         area_frame = width_frame * height_frame
 
         # Compare the area of the rectangle with 20% of the area of the frame
-        percentage_of_frame = (area_rectangle / area_frame) * 100
-        #print( percentage_of_frame)
+        percentage_of_frame = (area_rectangle / area_frame) 
+        #print( percentage_of_frame, self.config['prom_frame'],"percentage_of_frame")
+        print("percentage_of_frame {} config {}  eval {} ".format(percentage_of_frame,self.config['prom_frame'],percentage_of_frame >= self.config['prom_frame']))
+        #if frame is not None:
+        #    print("frame Ok")
+        
+        print("self.confiden {}  config {}  eval {} ".format(self.confiden,self.config['treshold_plate'],self.confiden>self.config['treshold_plate']))
         if percentage_of_frame >= self.config['prom_frame'] and frame is not None and self.confiden>self.config['treshold_plate']:
             
             
@@ -202,10 +207,54 @@ class Tracker:
                             self.RepetitiveInterval = None
                     
                         self.sendAG(getJson)
+                    else:
+                        self.badPrediction.append(response.message)
                 
                                                  
             else:
+               
                 if not self.issend:
+                    print("Tracker Id: ",self.id )
+                    segment_frame = self.getSegmentFrame(track,frame)
+                    x_top = segment_frame['x']
+                    y_top = segment_frame['y']
+                    width = segment_frame['width']
+                    height = segment_frame['height']
+                    roi_img = frame[y_top:y_top+height,x_top:x_top+width]
+                    #self.send_video(segment_frame['segment_photo'],self.redis,self.config['device_id'])
+                    result = fn(segment_frame['segment_photo'],{
+                        "type":"plate",
+                        "trackId":self.id,
+                        "devId":self.config['device_id'],
+                        #"x":segment_frame['x'],
+                        "y":segment_frame['y'],
+                        "width":segment_frame['width'],
+                        "height":segment_frame['height']
+                        })
+                    
+                    resul = []
+                    for pred_i in result:
+                        resul.append(pred_i[0])
+                    msg_out = 'EMPTY'
+                    if len(resul)>0:
+                        msg_out = ''
+                        for x in resul: 
+                            msg_out += x
+                        msg_out = self.clearResult(msg_out)
+                        
+                    
+                    self.issend = self.matches_any_regex(msg_out,self.config["regex"])
+                    print("[VALIDATION]", self.issend, msg_out)
+                    if self.issend:
+                        print(msg_out,"result")
+                        self.plate_chars=  msg_out
+                        getJson = self.prepareJson(track,frame)
+                        getJson['plate_chars']= self.clearResult(self.plate_chars)
+                        self.sendAG(getJson)
+                    
+                
+                
+                if not self.issend and  False:
                     getJson = self.prepareJson(track,frame)
                     result = fn(frame,getJson)
                     resul = []
@@ -222,11 +271,11 @@ class Tracker:
                             msg_out += x
                         msg_out = self.clearResult(msg_out)
                         self.issend = self.matches_any_regex(msg_out,self.config["regex"])
-                        
-                                            
-                        self.plate_chars=  msg_out
-                        getJson['plate_chars']= self.clearResult(self.plate_chars)
-                        self.sendAG(getJson)      
+                        print(self.issend,"[VALIDATING] ", self.id," ",self.current_timestamp)
+                        if self.issend:                    
+                            self.plate_chars=  msg_out
+                            getJson['plate_chars']= self.clearResult(self.plate_chars)
+                            self.sendAG(getJson)      
                     if self.config['debug']:
                         print('msg_out: ', msg_out,self.confiden)
             
@@ -253,15 +302,6 @@ class Tracker:
                 'track': track
             }
             self.queue.put(event)
-            self.recursivefn()
-            if self.RepetitiveInterval is not None  and  not self.RepetitiveInterval.running:
-                self.RepetitiveInterval.running = True
-                self.RepetitiveInterval.start()
-                
-                
-            
-            
-            
                                 
             #self.pred(frame,self.prediction,track)
         self.updated_timestamp = time.time()
@@ -278,8 +318,8 @@ class Tracker:
     def getSegmentFrame(self,track,frame):
         height_frame, width_frame, _ = frame.shape
         xcar1, ycar1, xcar2, ycar2 = track
-        xcar1 = xcar1+self.padding
-        ycar1 = ycar1+self.padding
+        xcar1 = xcar1 + self.padding
+        ycar1 = ycar1 + self.padding
         xcar2 = xcar2 -self.padding
         ycar2 = ycar2 - self.padding 
 
@@ -291,9 +331,19 @@ class Tracker:
         ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
         xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
         ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
+        x = xmin_padded
+        y = ymin_padded
+        w = xmax_padded - xmin_padded
+        h = ymax_padded - ymin_padded
         
         segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-        return segment_photo
+        return {
+            "segment_photo":segment_photo,
+            "x":x,
+            "y":y,
+            "width":w,
+            "height":h
+        }
 
     def prepareJson(self,track,frame):
         height_frame, width_frame, _ = frame.shape
@@ -397,7 +447,10 @@ class Tracker:
             "timestamp" : current_timestamp
         }
 
+    def destroy(self):
         
+        self.RepetitiveInterval.stop()
+        self.RepetitiveInterval = None        
         
 
 

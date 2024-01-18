@@ -3,7 +3,7 @@ from cls.clsTracker import Tracker;
 import queue
 import re
 import json
-
+import redis
 import re
 
 def generate_regex(example):
@@ -28,12 +28,13 @@ def generate_regex(example):
 
 class Device:
     
-    def __init__(self,config):
+    def __init__(self,config,send_video):
         self.tracks = {}
         self.config = config
         self.umbral_iou= 0.1
         self.asociaciones = []
-        
+        self.connect_redis= redis.Redis(host=config['ip_redis'], port=config['port_redis'])
+        self.send_video = send_video
         self.regex = []
         for reg in self.config["regular_expressions"]:
             self.regex.append(generate_regex(reg))
@@ -53,12 +54,16 @@ class Device:
                         if(self.tracks.get(id_sort, None)):
                             self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1],box_detec)
                         else:
-                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec,stub)
+                            print("New Tracker: ",id_sort)
+                            self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec,stub,self.connect_redis,self.send_video)
         
+       
         for key in list(self.tracks.keys()):
             diff = self.tracks[key].checkIslive()
-            #print(len(self.tracks),tracks)
+            
             if diff > 2:
+                #send  the  better prediction  before  dead  tracker
+                self.tracks[key].destroy()
                 self.tracks.pop(self.tracks[key].getId())
 
     def calcular_iou(self,boxA, boxB):

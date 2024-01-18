@@ -24,11 +24,13 @@ class CustomEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
     
 class Event:
-    def __init__(self,frame,track,distance,prediction):
+    def __init__(self,frame,track,prob,prediction,segment_frame,getJson):
         self.frame = frame
         self.track = track
-        self.distance = distance
-        self,prediction = prediction
+        self.prob = prob
+        self.prediction = prediction
+        self.segment_frame =segment_frame
+        self.getJson = getJson
         pass
 
 
@@ -146,16 +148,17 @@ class Tracker:
         # Iterate through each regular expression in the array
         prob = 0
         match_found = False
-        pattern = re.compile(regexes)
-        grupos = pattern.findall(string)
-        if not grupos:
-            prob = 0
-        prob = len(''.join(grupos)) / len(string)
+        
         
         for regex in regexes:
             # If the string matches the current regular expression
+            pattern = re.compile(regex)
+            grupos = pattern.findall(string)
+            if not grupos:
+                prob = 0
+            prob = len(''.join(grupos)) / len(string)
             if re.match(regex, string):
-                return True
+                return True, prob
         return match_found , prob
 
     def pred(self,frame,fn,track):
@@ -189,13 +192,11 @@ class Tracker:
                 
                 self.plate_chars  = self.predByHTTP(frame,getJson)
                 if(self.plate_chars is not None):
-                    
+                    getJson['plate_chars']= self.clearResult(self.plate_chars)
+                    getJson['segment_photo'] =  getJson['aux_segment_photo']
                     self.issend, prob= self.matches_any_regex(self.plate_chars,self.config["regex"])
-                    if self.issend:                     
-                        getJson['plate_chars']= self.clearResult(self.plate_chars)
-                        getJson['segment_photo'] =  getJson['aux_segment_photo']
-                        self.sendAG(getJson)
-                        
+                    self.beforeReport(self.issend,self.plate_chars,prob,track,frame,getJson)
+                    
             elif self.config['ocr_grcp']:
                 if not self.issend and frame is not None:
                     json_segment_frame = self.getSegmentFrame(track,frame)
@@ -207,7 +208,7 @@ class Tracker:
                
                     self.issend , prob = self.matches_any_regex(response.message,self.config["regex"])
                     print("reques  tracker ",self.id, " date ", self.current_timestamp, "result : ",response)
-                    self.beforeReport(self.issend,response.message,prob,track,frame)
+                    self.beforeReport(self.issend,response.message,prob,track,frame,None,json_segment_frame)
                                    
             else:
                
@@ -240,15 +241,11 @@ class Tracker:
                             msg_out += x
                         msg_out = self.clearResult(msg_out)
                         
-                    
+                    print(self.matches_any_regex(msg_out,self.config["regex"]),"here")
                     self.issend, prob = self.matches_any_regex(msg_out,self.config["regex"])
-                    print("[VALIDATION]", self.issend, msg_out)
-                    if self.issend:
-                        print(msg_out,"result")
-                        self.plate_chars=  msg_out
-                        getJson = self.prepareJson(track,frame)
-                        getJson['plate_chars']= self.clearResult(self.plate_chars)
-                        self.sendAG(getJson)
+                    
+                    self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
+                    
 
 
         else:
@@ -381,19 +378,20 @@ class Tracker:
             
         return datos
    
-    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None):
+    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
         if issend:
             self.plate_chars=  plate_chars
-            getJson = self.prepareJson(track,frame)
-            getJson['plate_chars']= self.clearResult(self.plate_chars)
+            if getJson is None:
+                getJson = self.prepareJson(track,frame)
+                getJson['plate_chars']= self.clearResult(self.plate_chars)
             if  self.RepetitiveInterval is not None:
                 self.RepetitiveInterval.stop()
                 self.RepetitiveInterval = None
         
             self.sendAG(getJson)
         else:
-            eventToqueue = Event(frame,track,prob,plate_chars)
-            self.badPrediction.append(plate_chars)
+            eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson)
+            self.badPrediction.append(eventToqueue)
     
                                  
         
@@ -432,8 +430,22 @@ class Tracker:
     def destroy(self):
         if self.RepetitiveInterval is not None:
             self.RepetitiveInterval.stop()
-            self.RepetitiveInterval = None        
-        
+            self.RepetitiveInterval = None
+        if not self.issend:
+            max_prob_event = None
+            max_prob = 0
+            for event in self.badPrediction:
+                if event.prob > max_prob:
+                    max_prob = event.prob
+                    max_prob_event = event
+            if max_prob_event is not None:
+                self.beforeReport(True,max_prob_event.plate_chars,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,max_prob_event.segment_frame)
+            
+            
+                
 
 
-        
+    
+                
+                    
+    

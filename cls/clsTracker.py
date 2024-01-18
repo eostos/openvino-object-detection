@@ -24,10 +24,11 @@ class CustomEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
     
 class Event:
-    def __init__(self):
-        self.prob_detection
-        self.frame
-        self.track
+    def __init__(self,frame,track,distance,prediction):
+        self.frame = frame
+        self.track = track
+        self.distance = distance
+        self,prediction = prediction
         pass
 
 
@@ -143,11 +144,19 @@ class Tracker:
 
     def matches_any_regex(self,string, regexes):
         # Iterate through each regular expression in the array
+        prob = 0
+        match_found = False
+        pattern = re.compile(regexes)
+        grupos = pattern.findall(string)
+        if not grupos:
+            prob = 0
+        prob = len(''.join(grupos)) / len(string)
+        
         for regex in regexes:
             # If the string matches the current regular expression
             if re.match(regex, string):
                 return True
-        return False
+        return match_found , prob
 
     def pred(self,frame,fn,track):
         xcar1, ycar1, xcar2, ycar2 = track
@@ -181,36 +190,25 @@ class Tracker:
                 self.plate_chars  = self.predByHTTP(frame,getJson)
                 if(self.plate_chars is not None):
                     
-                    self.issend = self.matches_any_regex(self.plate_chars,self.config["regex"])
+                    self.issend, prob= self.matches_any_regex(self.plate_chars,self.config["regex"])
                     if self.issend:                     
                         getJson['plate_chars']= self.clearResult(self.plate_chars)
                         getJson['segment_photo'] =  getJson['aux_segment_photo']
                         self.sendAG(getJson)
                         
             elif self.config['ocr_grcp']:
-                if not self.issend:
- 
-                    _, image_bytes = cv2.imencode('.jpg', self.getSegmentFrame(track,frame))
+                if not self.issend and frame is not None:
+                    json_segment_frame = self.getSegmentFrame(track,frame)
+
+                    _, image_bytes = cv2.imencode('.jpg', json_segment_frame['segment_photo'])
                     future_response = self.stub.UploadImage.future(image_service_pb2.ImageUploadRequest(image=image_bytes.tostring()))       
                     response = future_response.result()
                     
                
-                    self.issend = self.matches_any_regex(response.message,self.config["regex"])
+                    self.issend , prob = self.matches_any_regex(response.message,self.config["regex"])
                     print("reques  tracker ",self.id, " date ", self.current_timestamp, "result : ",response)
-
-                    if self.issend:
-                        self.plate_chars=  response.message
-                        getJson = self.prepareJson(track,frame)
-                        getJson['plate_chars']= self.clearResult(self.plate_chars)
-                        if  self.RepetitiveInterval is not None:
-                            self.RepetitiveInterval.stop()
-                            self.RepetitiveInterval = None
-                    
-                        self.sendAG(getJson)
-                    else:
-                        self.badPrediction.append(response.message)
-                
-                                                 
+                    self.beforeReport(self.issend,response.message,prob,track,frame)
+                                   
             else:
                
                 if not self.issend:
@@ -243,7 +241,7 @@ class Tracker:
                         msg_out = self.clearResult(msg_out)
                         
                     
-                    self.issend = self.matches_any_regex(msg_out,self.config["regex"])
+                    self.issend, prob = self.matches_any_regex(msg_out,self.config["regex"])
                     print("[VALIDATION]", self.issend, msg_out)
                     if self.issend:
                         print(msg_out,"result")
@@ -251,37 +249,6 @@ class Tracker:
                         getJson = self.prepareJson(track,frame)
                         getJson['plate_chars']= self.clearResult(self.plate_chars)
                         self.sendAG(getJson)
-                    
-                
-                
-                if not self.issend and  False:
-                    getJson = self.prepareJson(track,frame)
-                    result = fn(frame,getJson)
-                    resul = []
-                    for pred_i in result:
-                        resul.append(pred_i[0])
-                
-                    #print('resul: ', resul)
-                    msg_out = 'EMPTY'
-                    if len(result):
-                        #msg_out = str(resul)
-                        # traverse in the string  
-                        msg_out = ''
-                        for x in resul: 
-                            msg_out += x
-                        msg_out = self.clearResult(msg_out)
-                        self.issend = self.matches_any_regex(msg_out,self.config["regex"])
-                        print(self.issend,"[VALIDATING] ", self.id," ",self.current_timestamp)
-                        if self.issend:                    
-                            self.plate_chars=  msg_out
-                            getJson['plate_chars']= self.clearResult(self.plate_chars)
-                            self.sendAG(getJson)      
-                    if self.config['debug']:
-                        print('msg_out: ', msg_out,self.confiden)
-            
-           
-
-            
 
 
         else:
@@ -414,7 +381,22 @@ class Tracker:
             
         return datos
    
-
+    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None):
+        if issend:
+            self.plate_chars=  plate_chars
+            getJson = self.prepareJson(track,frame)
+            getJson['plate_chars']= self.clearResult(self.plate_chars)
+            if  self.RepetitiveInterval is not None:
+                self.RepetitiveInterval.stop()
+                self.RepetitiveInterval = None
+        
+            self.sendAG(getJson)
+        else:
+            eventToqueue = Event(frame,track,prob,plate_chars)
+            self.badPrediction.append(plate_chars)
+    
+                                 
+        
     def generateFolders(self,full_photo,segment_photo):
         current_date = datetime.now()
         
@@ -448,9 +430,9 @@ class Tracker:
         }
 
     def destroy(self):
-        
-        self.RepetitiveInterval.stop()
-        self.RepetitiveInterval = None        
+        if self.RepetitiveInterval is not None:
+            self.RepetitiveInterval.stop()
+            self.RepetitiveInterval = None        
         
 
 

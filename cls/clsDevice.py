@@ -18,10 +18,10 @@ def generate_regex(example):
     for seq in sequences:
         if seq.isdigit():
             # Secuencia de dígitos
-            regex_parts.append(r"\d{" + str(len(seq)) + r"}")
+            regex_parts.append(r"(\d{" + str(len(seq)) + r"})")
         else:
             # Secuencia de no dígitos
-            regex_parts.append(r"\D{" + str(len(seq)) + r"}")
+            regex_parts.append(r"(\D{" + str(len(seq)) + r"})")
 
     regex = "^" + "".join(regex_parts) + "$"
     return regex

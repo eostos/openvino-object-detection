@@ -141,24 +141,27 @@ class Tracker:
             return plate.replace('PLATE', '')
         else:
             return plate
-
-   
-
     def matches_any_regex(self,string, regexes):
         # Iterate through each regular expression in the array
         prob = 0
         match_found = False
+        #START PROCESSprint("EVALUATING STRING ", string)
+        total_digits = 0
+        total_non_digits = 0
         
         
         for regex in regexes:
-            # If the string matches the current regular expression
-            pattern = re.compile(regex)
-            grupos = pattern.findall(string)
-            if not grupos:
-                prob = 0
-            prob = len(''.join(grupos)) / len(string)
-            if re.match(regex, string):
-                return True, prob
+            match = re.match(regex, string)
+            if match:
+                print("Regex {} groups {}  string {}".format(regex,match.groups(),string))
+                matching_part = ''.join(group if group is not None else '' for group in match.groups())
+                total_digits += sum(c.isdigit() for c in matching_part)
+                total_non_digits += sum(not c.isdigit() for c in matching_part)
+                total = total_digits + total_non_digits
+                if re.match(regex, string):
+                    prob = total/len(string)
+                    return True, prob
+                
         return match_found , prob
 
     def pred(self,frame,fn,track):
@@ -243,6 +246,7 @@ class Tracker:
                         
                     print(self.matches_any_regex(msg_out,self.config["regex"]),"here")
                     self.issend, prob = self.matches_any_regex(msg_out,self.config["regex"])
+                    print(prob,"[PROB]")
                     
                     self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
                     
@@ -379,10 +383,13 @@ class Tracker:
         return datos
    
     def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
+        
         if issend:
             self.plate_chars=  plate_chars
             if getJson is None:
+                print("HERE")
                 getJson = self.prepareJson(track,frame)
+                print("HERE2")
                 getJson['plate_chars']= self.clearResult(self.plate_chars)
             if  self.RepetitiveInterval is not None:
                 self.RepetitiveInterval.stop()
@@ -428,19 +435,30 @@ class Tracker:
         }
 
     def destroy(self):
+        print("[DESTROY] ",len(self.badPrediction))
         if self.RepetitiveInterval is not None:
             self.RepetitiveInterval.stop()
             self.RepetitiveInterval = None
         if not self.issend:
             max_prob_event = None
             max_prob = 0
+            max_len = 0
             for event in self.badPrediction:
+                print("[SEARCHING] ",event.prob , max_prob)
+                
                 if event.prob > max_prob:
                     max_prob = event.prob
                     max_prob_event = event
+                elif event.prob == max_prob: 
+                    if max_prob_event is None:
+                        max_prob_event = event
+                    else:
+                        if len(event.prediction)>len(max_prob_event.prediction):
+                            max_prob_event = event
             if max_prob_event is not None:
-                self.beforeReport(True,max_prob_event.plate_chars,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,max_prob_event.segment_frame)
-            
+                print("TRY SEND ", event.prediction)
+                self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
+                
             
                 
 

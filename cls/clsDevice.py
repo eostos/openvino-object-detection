@@ -64,7 +64,7 @@ class Device:
             if diff > 2:
                 #send  the  better prediction  before  dead  tracker
                 self.tracks[key].destroy()
-                self.tracks.pop(self.tracks[key].getId())
+                self.tracks.pop(key)
 
     def calcular_iou(self,boxA, boxB):
         # Determinar las coordenadas (x, y) de la intersección

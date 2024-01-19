@@ -71,7 +71,7 @@ import grpc
 
 log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=sys.stdout)
 #mot_tracker=Sort(max_age=5, min_hits=3,iou_threshold=0.3)
-# Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2
+# Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2``
 # Default values are max_age = 3, min_hits = 1 and iou_threshold = 0.3
 tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
 
@@ -228,13 +228,18 @@ def main():
         ocr_grcp_ip = conf_dict['ocr_grcp_ip']
         ocr_grcp_port = conf_dict['ocr_grcp_port']
         ocr_grcp        = conf_dict['ocr_grcp']
+        ocr_http =  conf_dict['ocr_http']
     except json.JSONDecodeError:
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:
         print("Error: 'vid_path' not found in the configuration parameters.")
     connect_redis= redis.Redis(host=ip_redis, port=port_redis)
-    ocr = OCR(country)
-    prediction=ocr.prediction
+    if  ocr_grcp or ocr_http:
+        pass
+    else:
+        ocr = OCR(country)
+        prediction=ocr.prediction
+
     if ocr_grcp:
         print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
         channel = grpc.insecure_channel('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
@@ -289,6 +294,7 @@ def main():
 
     track_history = defaultdict(lambda: [])
     while True:
+        
         start_time = time.time()
         total_time = 0.0
         if detector_pipeline.callback_exceptions:
@@ -401,7 +407,9 @@ def main():
             # Get new image/frame
             start_time = perf_counter()
             frame = cap.read()
+                
             if frame is None:
+            
                 if next_frame_id == 0:
                     raise ValueError("Can't read an image from the input")
                 break
@@ -431,6 +439,7 @@ def main():
 
     detector_pipeline.await_all()
     if detector_pipeline.callback_exceptions:
+        sys.exit(0)
         raise detector_pipeline.callback_exceptions[0]
     # Process completed requests
     for next_frame_id_to_show in range(next_frame_id_to_show, next_frame_id):
@@ -467,7 +476,7 @@ def main():
         
         
     print("break while")    
-
+    sys.exit(0)
 
 
 if __name__ == '__main__':

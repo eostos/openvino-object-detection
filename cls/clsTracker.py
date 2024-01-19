@@ -87,7 +87,8 @@ class Tracker:
 
         
         
-    def recursivefn(self):        
+    def recursivefn(self):    
+        print("Running recursive")    
         event = self.queue.get()
         self.pred(event['frame'],event['prediction'],event['track'])
         if self.issend:
@@ -213,7 +214,7 @@ class Tracker:
                     print("reques  tracker ",self.id, " date ", self.current_timestamp, "result : ",response)
                     self.beforeReport(self.issend,response.message,prob,track,frame,None,json_segment_frame)
                                    
-            else:
+            elif not self.config['ocr_grcp'] and not self.config['ocr_http']:
                
                 if not self.issend:
                     print("Tracker Id: ",self.id )
@@ -386,23 +387,24 @@ class Tracker:
         return datos
    
     def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
+        if plate_chars != 'EMPTY' and len(plate_chars)>3:
+            if issend:
+                self.plate_chars=  plate_chars
+                if getJson is None:
+                    print("HERE")
+                    getJson = self.prepareJson(track,frame)
+                    print("HERE2")
+                    getJson['plate_chars']= self.clearResult(self.plate_chars)
+                if  self.RepetitiveInterval is not None:
+                    self.RepetitiveInterval.stop()
+                    self.RepetitiveInterval = None
+            
+                self.sendAG(getJson)
+            else:
+                eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson)
+                #self.badPrediction.append(eventToqueue)
+                eventToqueue = None
         
-        if issend:
-            self.plate_chars=  plate_chars
-            if getJson is None:
-                print("HERE")
-                getJson = self.prepareJson(track,frame)
-                print("HERE2")
-                getJson['plate_chars']= self.clearResult(self.plate_chars)
-            if  self.RepetitiveInterval is not None:
-                self.RepetitiveInterval.stop()
-                self.RepetitiveInterval = None
-        
-            self.sendAG(getJson)
-        else:
-            eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson)
-            self.badPrediction.append(eventToqueue)
-    
                                  
         
     def generateFolders(self,full_photo,segment_photo):
@@ -462,7 +464,28 @@ class Tracker:
                 print("TRY SEND ", event.prediction)
                 self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
                 
-                self.badPrediction = None
+            self.badPrediction = None
+            while not self.queue.empty():
+                try:
+                    self.queue.get_nowait()
+                except queue.Empty:
+                    continue
+
+            self.queue = None
+            self.padding = None
+            self.box_detec = None
+            self.prediction  = None
+            self.track = None
+            self.id =  None
+            self.config = None
+            
+            self.stub = None            
+            self.eval=None
+            self.RepetitiveInterval =None
+            self.badPrediction = []
+            self.redis =None
+            self.send_video = None
+                
             
                 
 

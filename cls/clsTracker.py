@@ -270,6 +270,9 @@ class Tracker:
                 'track': track
             }
             self.queue.put(event)
+            if len(self.badPrediction)>5:
+                self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
+                self.badPrediction = self.badPrediction[:5]
                                 
             #self.pred(frame,self.prediction,track)
         self.updated_timestamp = time.time()
@@ -459,6 +462,7 @@ class Tracker:
                 print("TRY SEND ", event.prediction)
                 self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
                 
+                self.badPrediction = None
             
                 
 

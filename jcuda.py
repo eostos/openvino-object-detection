@@ -102,9 +102,18 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
         exit()
     cont=0
     while True:
+        if cap is None or not cap.isOpened():
+            cap = cv2.VideoCapture(conf_dict["vid_path"])
+            continue
         #if cv2.getWindowProperty(WINDOW_NAME, 0) < 0:
         #    break
         ret, img = cap.read()  # Read a frame
+        if not ret:
+            print("Error al leer el frame. Intentando reconectar...")
+            cap.release()
+            cap = None
+            continue
+        
         #img = cam.read()
         if img is not None:
             height_frame, width_frame, _ = img.shape
@@ -220,7 +229,7 @@ def main():
     loop_and_detect(None, trt_yolo, args.conf_thresh, vis=vis,conf_dict=conf_dict,connect_redis=connect_redis,device=device,prediction=prediction)
     
     cv2.destroyAllWindows()
- 
+
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,1 @@
+sudo docker run   --name  test  --gpus all --net host -dt jcaltamare/object_trt:prod-lpr

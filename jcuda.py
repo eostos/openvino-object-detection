@@ -144,11 +144,13 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
                 pass
             
             tracks = tracker.get_tracks(2)
-            threading.Thread(target=device.set_trackers, args=(tracks,img,prediction,detections_,padding,stub)).start()
+            frame_to_save = img.copy()
+
+            threading.Thread(target=device.set_trackers, args=(tracks,frame_to_save,prediction,detections_,padding,stub)).start()
             img = vis.draw_bboxes(img, boxes, confs, clss)
             img = show_fps(img, fps)
             util.send_video(img,connect_redis,conf_dict["device_id"])
-            print(len(boxes))
+            #print(len(boxes))
             #if len(boxes) >= 1 :
             #   cv2.imwrite('output_image_'+str(cont)+".jpg", img)
             #   print('Image saved successfully.')   

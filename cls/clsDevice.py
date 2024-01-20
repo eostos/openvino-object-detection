@@ -49,13 +49,13 @@ class Device:
                 for box_detec in detections_:
                     iou = self.calcular_iou(box_sort, box_detec[:-1])
                     if iou >= self.umbral_iou:
-                        self.asociaciones.append((id_sort, box_detec[-1],box_sort))
+                        #self.asociaciones.append((id_sort, box_detec[-1],box_sort))
                         
                         if(self.tracks.get(id_sort, None)):
-                            print("Update Tracker",id_sort)
+                            #print("Update Tracker",id_sort)
                             self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1],box_detec)
                         else:
-                            print(self.tracks)
+                            
                             print("New Tracker: ",id_sort)
                             self.tracks[id_sort]=True
                             self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec,stub,self.connect_redis,self.send_video)

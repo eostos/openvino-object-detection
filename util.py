@@ -33,7 +33,7 @@ def send_video(image, connect_redis,device_id):
     H = resized_image.shape[0]
     displ = resized_image[H//2:H, :, :]
     # Convert image to JPEG format
-    jpg_string = cv2.imencode('.jpg', displ)[1]
+    jpg_string = cv2.imencode('.jpg', resized_image)[1]
     # Encode the image in base64
     encoded_string = base64.b64encode(jpg_string)
     # Publish to Redis
@@ -213,6 +213,7 @@ def getConfigs(file_path, is_docker=False):
             factor_width =data['factor_width']
             factor_height = data['factor_height']
             prom_frame= data["prom_frame"]
+            ocr_http = data['ocr_http']
             ocr_grcp = data["ocr_grcp"]
             ocr_grcp_port = data["ocr_grcp_port"]
             ocr_grcp_ip = data["ocr_grcp_ip"]
@@ -247,7 +248,8 @@ def getConfigs(file_path, is_docker=False):
                 'ocr_grcp_ip':ocr_grcp_ip,
                 'ocr_grcp_port':ocr_grcp_port,
                 'ocr_grcp':ocr_grcp,
-                'regular_expressions':regular_expressions
+                'regular_expressions':regular_expressions,
+                "ocr_http" : ocr_http
 
                 
             }

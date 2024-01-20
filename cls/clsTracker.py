@@ -8,13 +8,15 @@ import json
 import os
 from datetime import datetime
 import time
+import sys
+from pathlib import Path
 import image_service_pb2
 import image_service_pb2_grpc
 import grpc
 import re
 import queue
 import threading
-from cls.interval import RepetitiveInterval
+
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -54,10 +56,11 @@ class Tracker:
         self.stub = stub
         self.queue = queue.Queue()
         self.eval=None
-        self.RepetitiveInterval =RepetitiveInterval(1,self.recursivefn)
+        
         self.badPrediction = []
         self.redis =redis
         self.send_video =send_video
+        self.processqueue_status= False
         
         
         current_date = datetime.now()
@@ -76,22 +79,38 @@ class Tracker:
         event = {
                 'frame': frame,
                 'prediction': self.prediction,
-                'track': track
+                'track': track,
+                'config':self.config
             }
         
         
         
         self.queue.put(event)
-        self.RepetitiveInterval.running=True
-        self.RepetitiveInterval.start()
 
-        
+
+    def processqueue(self):
+        if not self.processqueue_status and  self.queue is not None:
+            while not self.queue.empty() and  self.queue is not None:
+                
+                self.processqueue_status= True
+                try:
+                    if not self.issend:
+                        event = self.queue.get()
+                        self.pred(event['frame'],event['prediction'],event['track'],event['config'])
+                        event = None
+                    else:
+                        self.queue.get_nowait()
+                        print(self.queue.qsize(), "ID: ", self.id)
+                except queue.Empty:
+                    self.processqueue_status= False
+                    continue
+                
         
     def recursivefn(self):
         if self.config["regex"] is not None:    
             print("Running recursive")    
             event = self.queue.get()
-            self.pred(event['frame'],event['prediction'],event['track'])
+            self.pred(event['frame'],event['prediction'],event['track'],event['config'])
             if self.issend:
                 
                 self.eval=None
@@ -166,7 +185,7 @@ class Tracker:
                 
         return match_found , prob
 
-    def pred(self,frame,fn,track):
+    def pred(self,frame,fn,track,config):
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -245,9 +264,9 @@ class Tracker:
                         for x in resul: 
                             msg_out += x
                         msg_out = self.clearResult(msg_out)
-                        print(self.config["regex"],"here")
-                        print(self.matches_any_regex(msg_out,self.config["regex"]),"here")
-                        self.issend, prob = self.matches_any_regex(msg_out,self.config["regex"])
+                        print(config["regex"],"here")
+                        print(self.matches_any_regex(msg_out,config["regex"]),"here")
+                        self.issend, prob = self.matches_any_regex(msg_out,config["regex"])
                         print(prob,"[PROB]")
                         
                         self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
@@ -260,18 +279,18 @@ class Tracker:
         return self.issend
 
     def update(self,track,frame,id,confiden,box_detec):
-        xcar1, ycar1, xcar2, ycar2 = track
         self.confiden=float(confiden)
         self.box_detec=box_detec
-        
         
         if not self.issend:
             event = {
                 'frame': frame,
                 'prediction': self.prediction,
-                'track': track
+                'track': track,
+                'config':self.config
             }
             self.queue.put(event)
+            self.processqueue()
             if len(self.badPrediction)>5:
                 self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
                 self.badPrediction = self.badPrediction[:5]
@@ -319,73 +338,74 @@ class Tracker:
         }
 
     def prepareJson(self,track,frame):
-        height_frame, width_frame, _ = frame.shape
-        xcar1, ycar1, xcar2, ycar2 = track
-        xcar1 = xcar1+self.padding
-        ycar1 = ycar1+self.padding
-        xcar2 = xcar2 -self.padding
-        ycar2 = ycar2 - self.padding 
+        if self.padding is not None:
+            height_frame, width_frame, _ = frame.shape
+            xcar1, ycar1, xcar2, ycar2 = track
+            xcar1 = xcar1+self.padding
+            ycar1 = ycar1+self.padding
+            xcar2 = xcar2 -self.padding
+            ycar2 = ycar2 - self.padding 
 
-        width_rectangle = xcar2 - xcar1
-        height_rectangle = ycar2 - ycar1
-
-
-        xmin_padded= max(xcar1-int(width_rectangle/int(self.config['factor_width'])),0)
-        ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
-        xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
-        ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
-        
-        segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-        evidence = self.generateFolders(frame,segment_photo)
-
-        x = xmin_padded
-        y = ymin_padded
-        w = xmax_padded - xmin_padded
-        h = ymax_padded - ymin_padded
-
-        ##print(x,y,w,h,"toocr")
-        ocr = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-
-        
-        deviceId = self.config['device_id']
-        datos ={
-            "type": "plate",
-            "trackId": self.id,
-            "devId": deviceId,
-            "deviceId":deviceId,
-            "x":x,
-            "y":y,
-            "width":w,
-            "height":h,
-            "full_photo":evidence['full_photo'],
-            "segment_photo":evidence['segment_photo'],
-            "aux_segment_photo":evidence['segment_photo'],
-            "host":deviceId,
-            "plate_chars":"",
-            "timestamp":str(evidence['timestamp']),
-            "speed":0,
-            "prob": self.confiden
-        }
+            width_rectangle = xcar2 - xcar1
+            height_rectangle = ycar2 - ycar1
 
 
-        if(self.config['ocr_http']):
-           
-            datos['segment_photo']=evidence['full_photo']
-        
-        for key, value in datos.items():
-            if isinstance(value, np.int32):
-                datos[key] = int(value)
-        
-        for key, value in datos.items():
-            if isinstance(value, int):  # Checks for int64 as well
-                datos[key] = int(value)  # Convert to standard Python int
+            xmin_padded= max(xcar1-int(width_rectangle/int(self.config['factor_width'])),0)
+            ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
+            xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
+            ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
+            
+            segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+            evidence = self.generateFolders(frame,segment_photo)
 
-        for key in datos:
-            if isinstance(datos[key], (np.int64, np.int32)):  # Checking for NumPy integer types
-                datos[key] = int(datos[key])
+            x = xmin_padded
+            y = ymin_padded
+            w = xmax_padded - xmin_padded
+            h = ymax_padded - ymin_padded
+
+            ##print(x,y,w,h,"toocr")
+            ocr = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
 
             
-        return datos
+            deviceId = self.config['device_id']
+            datos ={
+                "type": "plate",
+                "trackId": self.id,
+                "devId": deviceId,
+                "deviceId":deviceId,
+                "x":x,
+                "y":y,
+                "width":w,
+                "height":h,
+                "full_photo":evidence['full_photo'],
+                "segment_photo":evidence['segment_photo'],
+                "aux_segment_photo":evidence['segment_photo'],
+                "host":deviceId,
+                "plate_chars":"",
+                "timestamp":str(evidence['timestamp']),
+                "speed":0,
+                "prob": self.confiden
+            }
+
+
+            if(self.config['ocr_http']):
+            
+                datos['segment_photo']=evidence['full_photo']
+            
+            for key, value in datos.items():
+                if isinstance(value, np.int32):
+                    datos[key] = int(value)
+            
+            for key, value in datos.items():
+                if isinstance(value, int):  # Checks for int64 as well
+                    datos[key] = int(value)  # Convert to standard Python int
+
+            for key in datos:
+                if isinstance(datos[key], (np.int64, np.int32)):  # Checking for NumPy integer types
+                    datos[key] = int(datos[key])
+
+                
+            return datos
    
     def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
         if plate_chars != 'EMPTY' and len(plate_chars)>3:
@@ -396,9 +416,7 @@ class Tracker:
                     getJson = self.prepareJson(track,frame)
                     print("HERE2")
                     getJson['plate_chars']= self.clearResult(self.plate_chars)
-                if  self.RepetitiveInterval is not None:
-                    self.RepetitiveInterval.stop()
-                    self.RepetitiveInterval = None
+                #stop
             
                 self.sendAG(getJson)
             else:
@@ -441,16 +459,14 @@ class Tracker:
         }
 
     def destroy(self):
-        print("[DESTROY] ",len(self.badPrediction))
-        if self.RepetitiveInterval is not None:
-            self.RepetitiveInterval.stop()
-            self.RepetitiveInterval = None
+        #print("[DESTROY] ",len(self.badPrediction))
+        
         if not self.issend:
             max_prob_event = None
             max_prob = 0
             max_len = 0
             for event in self.badPrediction:
-                print("[SEARCHING] ",event.prob , max_prob)
+               
                 
                 if event.prob > max_prob:
                     max_prob = event.prob
@@ -462,7 +478,7 @@ class Tracker:
                         if len(event.prediction)>len(max_prob_event.prediction):
                             max_prob_event = event
             if max_prob_event is not None:
-                print("TRY SEND ", event.prediction)
+               
                 self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
                 
             self.badPrediction = None
@@ -472,17 +488,17 @@ class Tracker:
                 except queue.Empty:
                     continue
 
-            self.queue = None
+            
             self.padding = None
             self.box_detec = None
             self.prediction  = None
-            self.track = None
+            
             self.id =  None
             self.config = None
             
             self.stub = None            
             self.eval=None
-            self.RepetitiveInterval =None
+           
             self.badPrediction = []
             self.redis =None
             self.send_video = None

@@ -43,15 +43,15 @@ class Device:
 
     def set_trackers(self, tracks, frame, fn,detections_,padding,stub=None):
         self.asociaciones = []
+        height_frame, width_frame, _ = frame.shape
         
         if len(tracks)>0 and len(detections_)>0:
             for id_sort, *box_sort in tracks:
                 for box_detec in detections_:
                     iou = self.calcular_iou(box_sort, box_detec[:-1])
-                    if iou >= self.umbral_iou:
-                        #self.asociaciones.append((id_sort, box_detec[-1],box_sort))
-                        
+                    if iou >= self.umbral_iou and self.is_within_roi(box_sort,self.config['alter_config']['roi_limits'],width_frame,height_frame,padding):
                         if(self.tracks.get(id_sort, None)):
+                            pass
                             #print("Update Tracker",id_sort)
                             self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1],box_detec)
                         else:
@@ -95,4 +95,23 @@ class Device:
 
         return iou
 
+    def is_within_roi(self, coords, roi_limits, image_width, image_height,padding):
+        x1, y1, x2, y2 = coords
+        x1 = x1+padding
+        y1 = y1+padding
+        x2 = x2 -padding
+        y2 = y2 - padding 
+        # Convert ROI limits to absolute coordinates
+        xmin_roi = int(roi_limits[0] * image_width)
+        ymin_roi = int(roi_limits[1] * image_height)
+        xmax_roi = int(roi_limits[2] * image_width)
+        ymax_roi = int(roi_limits[3] * image_height)
+        
+        
 
+        # Unpack the detection coordinates
+    
+       
+        # Check if the detection is within the ROI
+        return xmin_roi <= x1 <= xmax_roi and ymin_roi <= y1 <= ymax_roi and \
+            xmin_roi <= x2 <= xmax_roi and ymin_roi <= y2 <= ymax_roi

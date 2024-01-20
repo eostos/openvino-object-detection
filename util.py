@@ -219,6 +219,7 @@ def getConfigs(file_path, is_docker=False):
             ocr_grcp_ip = data["ocr_grcp_ip"]
             treshold_plate = data["treshold_plate"]
             regular_expressions = data["regular_expressions"]
+            alter_config = data["alter-config"]
             
 
 
@@ -249,7 +250,8 @@ def getConfigs(file_path, is_docker=False):
                 'ocr_grcp_port':ocr_grcp_port,
                 'ocr_grcp':ocr_grcp,
                 'regular_expressions':regular_expressions,
-                "ocr_http" : ocr_http
+                'ocr_http' : ocr_http,
+                'alter_config':alter_config
 
                 
             }

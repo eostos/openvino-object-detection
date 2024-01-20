@@ -56,7 +56,7 @@ class Tracker:
         self.stub = stub
         self.queue = queue.Queue()
         self.eval=None
-        
+        self.events=[]
         self.badPrediction = []
         self.redis =redis
         self.send_video =send_video
@@ -83,37 +83,30 @@ class Tracker:
                 'config':self.config
             }
         
+        self.events.append(event)
         
-        
-        self.queue.put(event)
+        #self.queue.put(event)
 
 
     def processqueue(self):
-        if not self.processqueue_status and  self.queue is not None:
-            while not self.queue.empty() and  self.queue is not None:
+        if not self.processqueue_status and  self.events is not None:
+            while len(self.events)>0 and  self.events is not None:
                 
                 self.processqueue_status= True
                 try:
                     if not self.issend:
-                        event = self.queue.get()
+                        event = self.events.pop(0)
                         self.pred(event['frame'],event['prediction'],event['track'],event['config'])
                         event = None
                     else:
-                        self.queue.get_nowait()
-                        print(self.queue.qsize(), "ID: ", self.id)
-                except queue.Empty:
-                    self.processqueue_status= False
-                    continue
-                
-        
-    def recursivefn(self):
-        if self.config["regex"] is not None:    
-            print("Running recursive")    
-            event = self.queue.get()
-            self.pred(event['frame'],event['prediction'],event['track'],event['config'])
-            if self.issend:
-                
-                self.eval=None
+                        event = self.events.pop(0)
+                        event = None
+                        print(len(self.events), "ID: ", self.id)
+                    if len(self.events)==0:
+                        self.processqueue_status= False
+                        continue
+                except Exception as e :
+                    pass
           
     def sendAG(self,bodyjson):
         """                     {
@@ -243,9 +236,9 @@ class Tracker:
                     y_top = segment_frame['y']
                     width = segment_frame['width']
                     height = segment_frame['height']
-                    roi_img = frame[y_top:y_top+height,x_top:x_top+width]
+                    #roi_img = frame[y_top:y_top+height,x_top:x_top+width]
                     #self.send_video(segment_frame['segment_photo'],self.redis,self.config['device_id'])
-                    result = fn(segment_frame['segment_photo'],{
+                    result =fn(segment_frame['segment_photo'],{
                         "type":"plate",
                         "trackId":self.id,
                         "devId":self.config['device_id'],
@@ -289,7 +282,10 @@ class Tracker:
                 'track': track,
                 'config':self.config
             }
-            self.queue.put(event)
+            #self.pred(frame,self.prediction,track,self.config)
+            #self.queue.put(event)
+            
+            self.events.append(event)
             self.processqueue()
             if len(self.badPrediction)>5:
                 self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
@@ -457,6 +453,13 @@ class Tracker:
             "segment_photo":path_segment_photo,
             "timestamp" : current_timestamp
         }
+    def draw_bboxes(self,frame,track):
+        color = (0, 255, 0)
+        xmin, ymin, xmax, ymax = track
+        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
+        cv2.putText(frame, '{}'.format(self.id),
+                    (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
+        
 
     def destroy(self):
         #print("[DESTROY] ",len(self.badPrediction))

@@ -35,6 +35,15 @@ from cls.clsDevice import Device
 import traceback
 import os
 import threading
+import tracemalloc
+
+def display_top(snapshot, key_type='lineno', limit=10):
+    top_stats = snapshot.statistics(key_type)
+
+    print("Top {} líneas".format(limit))
+    for stat in top_stats[:limit]:
+        frame = stat.traceback[0]
+        print("{}:{}: {} bytes".format(frame.filename, frame.lineno, stat.size))
 
 
 resolved_path = Path(__file__).resolve()
@@ -197,246 +206,263 @@ def print_raw_results(detections, labels, frame_id):
         log.debug('{:^9} | {:10f} | {:4} | {:4} | {:4} | {:4} '
                   .format(det_label, detection.score, xmin, ymin, xmax, ymax))
 
-
 def main():
-####################
-    stub=None
-    channel=None
-    # Open json file
-    # TODO: add guards to getConfig
-    # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
-    if is_running_in_docker():
-        ConfParams = util.getConfigs('/opt/alice-lpr-cpu/config.json',True)
-    else:
-        ConfParams = util.getConfigs('./config.json')
-    
-    if ConfParams:
-        print(ConfParams)
-        # Parse the JSON string into a dictionary
+    tracemalloc.start()
     try:
-        conf_dict = json.loads(ConfParams)
-        device = Device(conf_dict,util.send_video)
-        vid_path = conf_dict['vid_path']
-        model_path = conf_dict['model']#it replaced the args.model
-        architecture_type = conf_dict['architecture_type']#it replaced the args.model
-        debug = conf_dict['debug']
-        ip_redis = conf_dict['ip_redis']
-        port_redis = conf_dict['port_redis']
-        device_id = conf_dict['device_id']
-        country = conf_dict['country']
-        devicearg  = conf_dict['device']
-        ocr_grcp_ip = conf_dict['ocr_grcp_ip']
-        ocr_grcp_port = conf_dict['ocr_grcp_port']
-        ocr_grcp        = conf_dict['ocr_grcp']
-        ocr_http =  conf_dict['ocr_http']
-    except json.JSONDecodeError:
-        print("Error: Failed to parse the configuration parameters.")
-    except KeyError:
-        print("Error: 'vid_path' not found in the configuration parameters.")
-    connect_redis= redis.Redis(host=ip_redis, port=port_redis)
-    if  ocr_grcp or ocr_http:
-        pass
-    else:
-        ocr = OCR(country)
-        prediction=ocr.prediction
-
-    if ocr_grcp:
-        print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
-        channel = grpc.insecure_channel('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
-        stub = image_service_pb2_grpc.ImageServiceStub(channel)
-####################
-    args = build_argparser().parse_args()
-    if args.architecture_type != 'yolov4' and args.anchors:
-        log.warning('The "--anchors" option works only for "-at==yolov4". Option will be omitted')
-    if args.architecture_type != 'yolov4' and args.masks:
-        log.warning('The "--masks" option works only for "-at==yolov4". Option will be omitted')
-    if args.architecture_type not in ['nanodet', 'nanodet-plus'] and args.num_classes:
-        log.warning('The "--num_classes" option works only for "-at==nanodet" and "-at==nanodet-plus". Option will be omitted')
-    
-    fps_target = 30
-    frame_time = 1 / fps_target
-
-    cap = open_images_capture(vid_path, True)
-    #print("args.input-------",vid_path)
-    #print("args.model-------",model_path)
-    if args.adapter == 'openvino':
-        plugin_config = get_user_config(devicearg, args.num_streams, args.num_threads)
-        model_adapter = OpenvinoAdapter(create_core(), model_path, device=devicearg, plugin_config=plugin_config,
-                                        max_num_requests=args.num_infer_requests, model_parameters = {'input_layouts': args.layout})
-    elif args.adapter == 'ovms':
-        model_adapter = OVMSAdapter(model_path)
-
-    configuration = {
-        'resize_type': args.resize_type,
-        'mean_values': args.mean_values,
-        'scale_values': args.scale_values,
-        'reverse_input_channels': args.reverse_input_channels,
-        'path_to_labels': args.labels,
-        'confidence_threshold': args.prob_threshold,
-        'input_size': args.input_size, # The CTPN specific
-        'num_classes': args.num_classes, # The NanoDet and NanoDetPlus specific
-    }
-    model = DetectionModel.create_model(architecture_type, model_adapter, configuration)
-    model.log_layers_info()
-
-    detector_pipeline = AsyncPipeline(model)
-
-    next_frame_id = 0
-    next_frame_id_to_show = 0
-
-    palette = ColorPalette(len(model.labels) if model.labels else 100)
-    metrics = PerformanceMetrics()
-    render_metrics = PerformanceMetrics()
-    presenter = None
-    output_transform = None
-    video_writer = cv2.VideoWriter()
-    ###
-
-    track_history = defaultdict(lambda: [])
-    while True:
-        
-        start_time = time.time()
-        total_time = 0.0
-        if detector_pipeline.callback_exceptions:
-            raise detector_pipeline.callback_exceptions[0]
-        # Process all completed requests
-        results = detector_pipeline.get_result(next_frame_id_to_show)
-        if results:
-            objects, frame_meta = results
-            frame = frame_meta['frame']
-            start_time = frame_meta['start_time']
-            height_frame, width_frame, _ = frame.shape
-           
-            padding =int(height_frame/5)
-
-            if len(objects) and args.raw_output_message:
-                print_raw_results(objects, model.labels, next_frame_id_to_show)
-
-            presenter.drawGraphs(frame)
-            rendering_start_time = perf_counter()
-            #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
-
-            #frame = output_transform.resize(frame)
-            detections_= []
-            for detection in objects:
-                class_id = int(detection.id)
-                color = palette[class_id]
-                det_label = model.labels[class_id] if model.labels and len(model.labels) >= class_id else '{}'.format(class_id)
-                #print(det_label)
-                xmin, ymin, xmax, ymax = detection.get_coords()
-                
-
-                xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
-                #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
-                #cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
-                #            (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
-                if isinstance(detection, DetectionWithLandmarks):
-                    for landmark in detection.landmarks:
-                        landmark = output_transform.scale(landmark)
-                        cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
-                    
-                if det_label=="1" : #1 is car 
-                    
-                  
-                    #print(xmin, ymin, xmax, ymax, detection.score)
-                    #print(xmin-padding, ymin-padding, xmax+padding, ymax+padding, detection.score)
-                    width_rectangle = xmax - xmin
-                    height_rectangle = ymax - ymin
-                    """ if conf_dict['country']=='colombia':
-                        width_rectangle=int(width_rectangle/2)
-                        height_rectangle=int(height_rectangle/4)
-                    """
-                    xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
-                    ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
-                    xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
-                    ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
-
-
-
-                    try:
-                        pass
-                        #print(ymin_padded,ymax_padded, xmin_padded,xmax_padded,"[coord]")
-                        recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-                        #util.send_video(recorte1,connect_redis,device_id)
-                        #cv2.imshow("simulate ocr",recorte1)   
-                    except Exception as e:
-                        print(e)
-                    #cv2.imshow("trac",recorte1)
-                    detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,detection.score])
-                    #print(detections_)
-            try :
-                
-                            #print(detections_)
-                start_time = time.time()
-                if detections_ :
-                    tracker.run(np.asarray(detections_), 2)
-                    cycle_time = time.time() - start_time
-                    total_time += cycle_time   
-            except Exception as e:
-                print("error ",e)
-                traceback.print_exc()
-            tracks = tracker.get_tracks(2)
-            threading.Thread(target=device.set_trackers, args=(tracks,frame,prediction,detections_,padding,stub)).start()
-            #device.set_trackers()
-            
-               
-            render_metrics.update(rendering_start_time)
-            metrics.update(start_time, frame)
-
-            if video_writer.isOpened() and (args.output_limit <= 0 or next_frame_id_to_show <= args.output_limit-1):
-                video_writer.write(frame)
-            next_frame_id_to_show += 1
-
-            util.send_video(frame,connect_redis,device_id)
-
-            if debug:
-                cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
-                cv2.imshow('Detection Results', frame)
-                
-                key = cv2.waitKey(1)
-            continue
-            
-                #ESC_KEY = 27
-                # Quit.
-            #    if key in {ord('q'), ord('Q'), ESC_KEY}:
-                   # break
-            #    presenter.handleKey(key)
-
-
-        if detector_pipeline.is_ready():
-            # Get new image/frame
-            start_time = perf_counter()
-            frame = cap.read()
-                
-            if frame is None:
-            
-                if next_frame_id == 0:
-                    raise ValueError("Can't read an image from the input")
-                break
-            if next_frame_id == 0:
-                output_transform = OutputTransform(frame.shape[:2], args.output_resolution)
-                if args.output_resolution:
-                    output_resolution = output_transform.new_resolution
-                else:
-                    output_resolution = (frame.shape[1], frame.shape[0])
-                presenter = monitors.Presenter(args.utilization_monitors, 55,
-                                               (round(output_resolution[0] / 4), round(output_resolution[1] / 8)))
-                if args.output and not video_writer.open(args.output, cv2.VideoWriter_fourcc(*'MJPG'),
-                                                         cap.fps(), output_resolution):
-                    raise RuntimeError("Can't open video writer")
-            # Submit for inference
-            
-            detector_pipeline.submit_data(frame, next_frame_id, {'frame': frame, 'start_time': start_time})
-            next_frame_id += 1
+        ####################
+        stub=None
+        channel=None
+        # Open json file
+        # TODO: add guards to getConfig
+        # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
+        if is_running_in_docker():
+            ConfParams = util.getConfigs('/opt/alice-lpr-cpu/config.json',True)
         else:
-            # Wait for empty request
-            detector_pipeline.await_any()
-        elapsed_time = time.time() - start_time
-        wait_time = max(0, frame_time - elapsed_time)
-        time.sleep(wait_time)
+            ConfParams = util.getConfigs('./config.json')
+        
+        if ConfParams:
+            print(ConfParams)
+            # Parse the JSON string into a dictionary
+        try:
+            conf_dict = json.loads(ConfParams)
+            device = Device(conf_dict,util.send_video)
+            vid_path = conf_dict['vid_path']
+            model_path = conf_dict['model']#it replaced the args.model
+            architecture_type = conf_dict['architecture_type']#it replaced the args.model
+            debug = conf_dict['debug']
+            ip_redis = conf_dict['ip_redis']
+            port_redis = conf_dict['port_redis']
+            device_id = conf_dict['device_id']
+            country = conf_dict['country']
+            devicearg  = conf_dict['device']
+            ocr_grcp_ip = conf_dict['ocr_grcp_ip']
+            ocr_grcp_port = conf_dict['ocr_grcp_port']
+            ocr_grcp        = conf_dict['ocr_grcp']
+            ocr_http =  conf_dict['ocr_http']
+        except json.JSONDecodeError:
+            print("Error: Failed to parse the configuration parameters.")
+        except KeyError:
+            print("Error: 'vid_path' not found in the configuration parameters.")
+        connect_redis= redis.Redis(host=ip_redis, port=port_redis)
+        if  ocr_grcp or ocr_http:
+            prediction = None
+        else:
+            ocr = OCR(country)
+            prediction=ocr.prediction
+
+        if ocr_grcp:
+            print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
+            channel = grpc.insecure_channel('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
+            stub = image_service_pb2_grpc.ImageServiceStub(channel)
+    ####################
+        args = build_argparser().parse_args()
+        if args.architecture_type != 'yolov4' and args.anchors:
+            log.warning('The "--anchors" option works only for "-at==yolov4". Option will be omitted')
+        if args.architecture_type != 'yolov4' and args.masks:
+            log.warning('The "--masks" option works only for "-at==yolov4". Option will be omitted')
+        if args.architecture_type not in ['nanodet', 'nanodet-plus'] and args.num_classes:
+            log.warning('The "--num_classes" option works only for "-at==nanodet" and "-at==nanodet-plus". Option will be omitted')
+        
+        fps_target = 30
+        frame_time = 1 / fps_target
+
+        cap = open_images_capture(vid_path, True)
+        #print("args.input-------",vid_path)
+        #print("args.model-------",model_path)
+        if args.adapter == 'openvino':
+            plugin_config = get_user_config(devicearg, args.num_streams, args.num_threads)
+            model_adapter = OpenvinoAdapter(create_core(), model_path, device=devicearg, plugin_config=plugin_config,
+                                            max_num_requests=args.num_infer_requests, model_parameters = {'input_layouts': args.layout})
+        elif args.adapter == 'ovms':
+            model_adapter = OVMSAdapter(model_path)
+
+        configuration = {
+            'resize_type': args.resize_type,
+            'mean_values': args.mean_values,
+            'scale_values': args.scale_values,
+            'reverse_input_channels': args.reverse_input_channels,
+            'path_to_labels': args.labels,
+            'confidence_threshold': args.prob_threshold,
+            'input_size': args.input_size, # The CTPN specific
+            'num_classes': args.num_classes, # The NanoDet and NanoDetPlus specific
+        }
+        model = DetectionModel.create_model(architecture_type, model_adapter, configuration)
+        model.log_layers_info()
+
+        detector_pipeline = AsyncPipeline(model)
+
+        next_frame_id = 0
+        next_frame_id_to_show = 0
+
+        palette = ColorPalette(len(model.labels) if model.labels else 100)
+        metrics = PerformanceMetrics()
+        render_metrics = PerformanceMetrics()
+        presenter = None
+        output_transform = None
+        video_writer = cv2.VideoWriter()
+        ###
+
+        track_history = defaultdict(lambda: [])
+        while True:
+            
+            start_time = time.time()
+            total_time = 0.0
+            if detector_pipeline.callback_exceptions:
+                raise detector_pipeline.callback_exceptions[0]
+            # Process all completed requests
+            results = detector_pipeline.get_result(next_frame_id_to_show)
+            if results:
+                objects, frame_meta = results
+                frame = frame_meta['frame']
+                start_time = frame_meta['start_time']
+                height_frame, width_frame, _ = frame.shape
+            
+                padding =int(height_frame/5)
+
+                if len(objects) and args.raw_output_message:
+                    print_raw_results(objects, model.labels, next_frame_id_to_show)
+
+                presenter.drawGraphs(frame)
+                rendering_start_time = perf_counter()
+                sendframe = frame.copy()
+                frame = draw_detections(frame, objects, palette, model.labels, output_transform)
+
+                #frame = output_transform.resize(frame)
+                detections_= []
+                for detection in objects:
+                    class_id = int(detection.id)
+                    color = palette[class_id]
+                    det_label = model.labels[class_id] if model.labels and len(model.labels) >= class_id else '{}'.format(class_id)
+                    #print(det_label)
+                    xmin, ymin, xmax, ymax = detection.get_coords()
+                    
+
+                    xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
+                    #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
+                    #cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
+                    #            (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
+                    if isinstance(detection, DetectionWithLandmarks):
+                        for landmark in detection.landmarks:
+                            landmark = output_transform.scale(landmark)
+                            cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
+                        
+                    if det_label=="1" : #1 is car 
+                        
+                    
+                        #print(xmin, ymin, xmax, ymax, detection.score)
+                        #print(xmin-padding, ymin-padding, xmax+padding, ymax+padding, detection.score)
+                        width_rectangle = xmax - xmin
+                        height_rectangle = ymax - ymin
+                        """ if conf_dict['country']=='colombia':
+                            width_rectangle=int(width_rectangle/2)
+                            height_rectangle=int(height_rectangle/4)
+                        """
+                        xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
+                        ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
+                        xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
+                        ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
 
 
 
+                        try:
+                            pass
+                            #print(ymin_padded,ymax_padded, xmin_padded,xmax_padded,"[coord]")
+                            recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+                            #util.send_video(recorte1,connect_redis,device_id)
+                            #cv2.imshow("simulate ocr",recorte1)   
+                        except Exception as e:
+                            print(e)
+                        #cv2.imshow("trac",recorte1)
+                        detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,detection.score])
+                        #print(detections_)
+                try :
+                    
+                                #print(detections_)
+                    start_time = time.time()
+                    if detections_ :
+                        tracker.run(np.asarray(detections_), 2)
+                        cycle_time = time.time() - start_time
+                        total_time += cycle_time   
+                except Exception as e:
+                    print("error ",e)
+                    traceback.print_exc()
+                tracks = tracker.get_tracks(2)
+               
+                threading.Thread(target=device.set_trackers, args=(tracks,sendframe,prediction,detections_,padding,stub)).start()
+                #device.set_trackers()
+                
+                
+                render_metrics.update(rendering_start_time)
+                metrics.update(start_time, frame)
+
+                if video_writer.isOpened() and (args.output_limit <= 0 or next_frame_id_to_show <= args.output_limit-1):
+                    video_writer.write(frame)
+                next_frame_id_to_show += 1
+                roi_limits = conf_dict['alter_config']['roi_limits']
+                rxmin = int(roi_limits[0] * width_frame)
+                rymin = int(roi_limits[1] * height_frame)
+                rxmax = int(roi_limits[2] * width_frame)
+                rymax = int(roi_limits[3] * height_frame)
+
+                # Dibuja el rectángulo en la imagen
+                sendFrame = frame.copy()
+                cv2.rectangle(frame, (rxmin, rymin), (rxmax, rymax), (0, 255, 0), 2)
+
+                util.send_video(frame,connect_redis,device_id)
+
+                if debug:
+                    cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
+                    cv2.imshow('Detection Results', frame)
+                    
+                    key = cv2.waitKey(1)
+                continue
+                
+                    #ESC_KEY = 27
+                    # Quit.
+                #    if key in {ord('q'), ord('Q'), ESC_KEY}:
+                    # break
+                #    presenter.handleKey(key)
+
+
+            if detector_pipeline.is_ready():
+                # Get new image/frame
+                start_time = perf_counter()
+                frame = cap.read()
+                    
+                if frame is None:
+                
+                    if next_frame_id == 0:
+                        raise ValueError("Can't read an image from the input")
+                    break
+                if next_frame_id == 0:
+                    output_transform = OutputTransform(frame.shape[:2], args.output_resolution)
+                    if args.output_resolution:
+                        output_resolution = output_transform.new_resolution
+                    else:
+                        output_resolution = (frame.shape[1], frame.shape[0])
+                    presenter = monitors.Presenter(args.utilization_monitors, 55,
+                                                (round(output_resolution[0] / 4), round(output_resolution[1] / 8)))
+                    if args.output and not video_writer.open(args.output, cv2.VideoWriter_fourcc(*'MJPG'),
+                                                            cap.fps(), output_resolution):
+                        raise RuntimeError("Can't open video writer")
+                # Submit for inference
+                
+                
+                detector_pipeline.submit_data(frame, next_frame_id, {'frame': frame, 'start_time': start_time})
+                next_frame_id += 1
+            else:
+                # Wait for empty request
+                detector_pipeline.await_any()
+            elapsed_time = time.time() - start_time
+            wait_time = max(0, frame_time - elapsed_time)
+            time.sleep(wait_time)
+
+    except KeyboardInterrupt:
+        print("\nInterrupción del teclado detectada, finalizando el seguimiento...")
+
+        snapshot = tracemalloc.take_snapshot()
+        display_top(snapshot)
+        
     detector_pipeline.await_all()
     if detector_pipeline.callback_exceptions:
         sys.exit(0)

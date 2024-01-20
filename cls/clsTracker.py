@@ -87,13 +87,14 @@ class Tracker:
 
         
         
-    def recursivefn(self):    
-        print("Running recursive")    
-        event = self.queue.get()
-        self.pred(event['frame'],event['prediction'],event['track'])
-        if self.issend:
-            
-            self.eval=None
+    def recursivefn(self):
+        if self.config["regex"] is not None:    
+            print("Running recursive")    
+            event = self.queue.get()
+            self.pred(event['frame'],event['prediction'],event['track'])
+            if self.issend:
+                
+                self.eval=None
           
     def sendAG(self,bodyjson):
         """                     {
@@ -239,17 +240,17 @@ class Tracker:
                     for pred_i in result:
                         resul.append(pred_i[0])
                     msg_out = 'EMPTY'
-                    if len(resul)>0:
+                    if len(resul)>0 and len(resul)<8:
                         msg_out = ''
                         for x in resul: 
                             msg_out += x
                         msg_out = self.clearResult(msg_out)
+                        print(self.config["regex"],"here")
+                        print(self.matches_any_regex(msg_out,self.config["regex"]),"here")
+                        self.issend, prob = self.matches_any_regex(msg_out,self.config["regex"])
+                        print(prob,"[PROB]")
                         
-                    print(self.matches_any_regex(msg_out,self.config["regex"]),"here")
-                    self.issend, prob = self.matches_any_regex(msg_out,self.config["regex"])
-                    print(prob,"[PROB]")
-                    
-                    self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
+                        self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
                     
 
 

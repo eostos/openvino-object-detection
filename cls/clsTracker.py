@@ -54,7 +54,6 @@ class Tracker:
         self.forder =""
         self.plate_chars=""
         self.stub = stub
-        self.queue = queue.Queue()
         self.eval=None
         self.events=[]
         self.badPrediction = []
@@ -485,11 +484,7 @@ class Tracker:
                 self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
                 
             self.badPrediction = None
-            while not self.queue.empty():
-                try:
-                    self.queue.get_nowait()
-                except queue.Empty:
-                    continue
+            
 
             
             self.padding = None

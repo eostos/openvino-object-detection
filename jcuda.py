@@ -149,6 +149,12 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
             threading.Thread(target=device.set_trackers, args=(tracks,frame_to_save,prediction,detections_,padding,stub)).start()
             img = vis.draw_bboxes(img, boxes, confs, clss)
             img = show_fps(img, fps)
+            roi_limits = conf_dict['alter_config']['roi_limits']
+            rxmin = int(roi_limits[0] * width_frame)
+            rymin = int(roi_limits[1] * height_frame)
+            rxmax = int(roi_limits[2] * width_frame)
+            rymax = int(roi_limits[3] * height_frame)
+            cv2.rectangle(img, (rxmin, rymin), (rxmax, rymax), (0, 255, 0), 2)
             util.send_video(img,connect_redis,conf_dict["device_id"])
             #print(len(boxes))
             #if len(boxes) >= 1 :
@@ -198,13 +204,19 @@ def main():
         ocr_grcp_ip = conf_dict['ocr_grcp_ip']
         ocr_grcp_port = conf_dict['ocr_grcp_port']
         ocr_grcp        = conf_dict['ocr_grcp']
+        ocr_http =  conf_dict['ocr_http']
     except json.JSONDecodeError:
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:
         print("Error: 'vid_path' not found in the configuration parameters.")
     connect_redis= redis.Redis(host=ip_redis, port=port_redis)
-    ocr = OCR(country)
-    prediction=ocr.prediction
+    if  ocr_grcp or ocr_http:
+        prediction = None
+    else:
+        ocr = OCR(country)
+        prediction=ocr.prediction
+        
+        
     if ocr_grcp:
         print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
         channel = grpc.insecure_channel('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))

@@ -130,10 +130,10 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
                 xmin, ymin, xmax, ymax = detection
                 width_rectangle = xmax - xmin
                 height_rectangle = ymax - ymin
-                xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
-                ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
-                xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
-                ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
+                #xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
+                #ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
+                #xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
+                #ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
 
                 detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,confs[index]])
                 

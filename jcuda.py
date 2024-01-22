@@ -57,6 +57,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description=desc)
     parser = add_camera_args(parser)
     parser.add_argument(
+        '-i', '--input', type=str, default="",
+        help='number of object categories []')
+    parser.add_argument(
         '-c', '--category_num', type=int, default=80,
         help='number of object categories [80]')
     parser.add_argument(
@@ -122,7 +125,7 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
             #if img is None:
             #    break
             boxes, confs, clss = trt_yolo.detect(img, conf_th)
-            print("boxes ",boxes)
+            #print("boxes ",boxes)
             detections_= []
             
             for index ,detection in enumerate(boxes):
@@ -174,7 +177,7 @@ def main():
     channel=None
     
     if is_running_in_docker():
-        ConfParams = util.getConfigs('/opt/alice-lpr-cpu/config.json',True)
+        ConfParams = util.getConfigs('/opt/alice-lpr-gpu/config.json',True)
     else:
         ConfParams = util.getConfigs('./config.json')
     

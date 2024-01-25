@@ -31,11 +31,10 @@ python3 -m pip install tensorrt_lean-*-cp3x-none-linux_x86_64.whl
 python3 -m pip install tensorrt_dispatch-*-cp3x-none-linux_x86_64.whl )
 
 ubuntu 18.04
-cuda 
-cudnn 
+cuda 11.2
+cudnn 8
 onnx==1.9.0
-Docker image 
-
+Docker image = "jcaltamare/lpr  compile-ubuntu18-cuda11.2-cudnn823"
 Convert yolov4 288  into tensorrt model.
 Change following code ... 
 open utils folder and "yolo_with_plugins.py" 

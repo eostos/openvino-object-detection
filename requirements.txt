@@ -10,6 +10,6 @@ opencv-contrib-python
 requests
 loguru
 pika
-protobuf
-grpcio
-grpcio-tools
+protobuf==4.25.1
+grpcio==1.60.0
+grpcio-tools==1.60.0

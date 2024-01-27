@@ -22,6 +22,7 @@ https://github.com/jkjung-avt/tensorrt_demos.git
 Install pluguins and all related in Demo# 5 in the repository above mentioned.
 
 tensorrt version 7.1.3.4 for Ubuntu 18.04 it should be installed for c++ and python 
+https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html#installing-tar.
 (Install the Python TensorRT wheel file (replace cp3x with the desired Python version, for example, cp310 for Python 3.10).
 cd TensorRT-${version}/python
 

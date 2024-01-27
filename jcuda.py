@@ -99,24 +99,15 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
     tic = time.time()
     print(conf_dict["vid_path"])
     
-    cap = cv2.VideoCapture(conf_dict["vid_path"])
-    if not cap.isOpened():
-        print("Error: Could not open video.")
-        exit()
+    #cap = cv2.VideoCapture(conf_dict["vid_path"])
     cont=0
     while True:
-        if cap is None or not cap.isOpened():
-            cap = cv2.VideoCapture(conf_dict["vid_path"])
-            continue
-        #if cv2.getWindowProperty(WINDOW_NAME, 0) < 0:
-        #    break
-        ret, img = cap.read()  # Read a frame
-        if not ret:
-            print("Error al leer el frame. Intentando reconectar...")
-            cap.release()
-            cap = None
-            continue
+        if not cam.isOpened():
+            time.sleep(5)
+            raise SystemExit('ERROR: failed to open the input video file!')
         
+        ret,img = cam.read()  # Read a frame
+        if img is None:  break
         #img = cam.read()
         if img is not None:
             height_frame, width_frame, _ = img.shape
@@ -175,7 +166,7 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
             #elif key == ord('F') or key == ord('f'):  # Toggle fullscreen
             #    full_scrn = not full_scrn
             #    set_display(WINDOW_NAME, full_scrn)
-
+    print('\nDone.')
 
 def main():
     args = parse_args()
@@ -212,10 +203,17 @@ def main():
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:
         print("Error: 'vid_path' not found in the configuration parameters.")
+        
+    cap = cv2.VideoCapture(vid_path)
+    if not cap.isOpened():
+        time.sleep(5)
+        raise SystemExit('ERROR: failed to open the input video file!')
+    print("loading REDIS")
     connect_redis= redis.Redis(host=ip_redis, port=port_redis)
     if  ocr_grcp or ocr_http:
         prediction = None
     else:
+        print("loading OCR")
         ocr = OCR(country)
         prediction=ocr.prediction
         
@@ -230,20 +228,17 @@ def main():
     if not os.path.isfile('./models/%s.trt' % args.model):
         raise SystemExit('ERROR: file (models/%s.trt) not found!' % args.model)
 
-    #cam = Camera(args)
-    #if not cam.isOpened():
-    #    raise SystemExit('ERROR: failed to open camera!')
 
     cls_dict = get_cls_dict(args.category_num)
     vis = BBoxVisualization(cls_dict)
-    
+    print("loading model")
     trt_yolo = TrtYOLO(args.model, args.category_num, args.letter_box)
    
    # open_window(
    #     WINDOW_NAME, 'Camera TensorRT YOLO Demo',
    #     cam.img_width, cam.img_height)
     
-    loop_and_detect(None, trt_yolo, args.conf_thresh, vis=vis,conf_dict=conf_dict,connect_redis=connect_redis,device=device,prediction=prediction)
+    loop_and_detect(cap, trt_yolo, args.conf_thresh, vis=vis,conf_dict=conf_dict,connect_redis=connect_redis,device=device,prediction=prediction)
     
     cv2.destroyAllWindows()
 

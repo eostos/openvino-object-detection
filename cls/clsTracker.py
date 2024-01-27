@@ -18,6 +18,7 @@ import queue
 import threading
 
 
+
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.int32):
@@ -26,13 +27,14 @@ class CustomEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
     
 class Event:
-    def __init__(self,frame,track,prob,prediction,segment_frame,getJson):
+    def __init__(self,frame,track,prob,prediction,segment_frame,getJson,det):
         self.frame = frame
         self.track = track
         self.prob = prob
         self.prediction = prediction
         self.segment_frame =segment_frame
         self.getJson = getJson
+        self.det = det
         pass
 
 
@@ -54,13 +56,13 @@ class Tracker:
         self.forder =""
         self.plate_chars=""
         self.stub = stub
-        self.queue = queue.Queue()
         self.eval=None
         self.events=[]
         self.badPrediction = []
         self.redis =redis
         self.send_video =send_video
         self.processqueue_status= False
+        
         
         
         current_date = datetime.now()
@@ -80,7 +82,8 @@ class Tracker:
                 'frame': frame,
                 'prediction': self.prediction,
                 'track': track,
-                'config':self.config
+                'config':self.config,
+                'det'   :box_detec
             }
         
         self.events.append(event)
@@ -96,7 +99,7 @@ class Tracker:
                 try:
                     if not self.issend:
                         event = self.events.pop(0)
-                        self.pred(event['frame'],event['prediction'],event['track'],event['config'])
+                        self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
                         event = None
                     else:
                         event = self.events.pop(0)
@@ -178,7 +181,7 @@ class Tracker:
                 
         return match_found , prob
 
-    def pred(self,frame,fn,track,config):
+    def pred(self,frame,fn,track,config,det):
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -205,7 +208,8 @@ class Tracker:
 
             if(self.config['ocr_http']):
                 #print("OCR REQUEST")
-                getJson = self.prepareJson(track,frame)
+                json_segment_frame = self.getSegmentFrame(track,frame,det)
+                getJson = self.prepareJson(track,frame, json_segment_frame['segment_photo'])
                 
                 self.plate_chars  = self.predByHTTP(frame,getJson)
                 if(self.plate_chars is not None):
@@ -216,7 +220,7 @@ class Tracker:
                     
             elif self.config['ocr_grcp']:
                 if not self.issend and frame is not None:
-                    json_segment_frame = self.getSegmentFrame(track,frame)
+                    json_segment_frame = self.getSegmentFrame(track,frame,det)
 
                     _, image_bytes = cv2.imencode('.jpg', json_segment_frame['segment_photo'])
                     future_response = self.stub.UploadImage.future(image_service_pb2.ImageUploadRequest(image=image_bytes.tostring()))       
@@ -231,7 +235,7 @@ class Tracker:
                
                 if not self.issend:
                     print("Tracker Id: ",self.id )
-                    segment_frame = self.getSegmentFrame(track,frame)
+                    segment_frame = self.getSegmentFrame(track,frame,det)
                     x_top = segment_frame['x']
                     y_top = segment_frame['y']
                     width = segment_frame['width']
@@ -280,7 +284,8 @@ class Tracker:
                 'frame': frame,
                 'prediction': self.prediction,
                 'track': track,
-                'config':self.config
+                'config':self.config,
+                'det'   :box_detec
             }
             #self.pred(frame,self.prediction,track,self.config)
             #self.queue.put(event)
@@ -303,9 +308,14 @@ class Tracker:
     def getId(self):
         return self.id
     
-    def getSegmentFrame(self,track,frame):
+    def getSegmentFrame(self,track,frame,det):
         height_frame, width_frame, _ = frame.shape
         xcar1, ycar1, xcar2, ycar2 = track
+        xmin, ymin, xmax,ymax, prob = det
+       
+        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+      
+        
         xcar1 = xcar1 + self.padding
         ycar1 = ycar1 + self.padding
         xcar2 = xcar2 -self.padding
@@ -313,18 +323,40 @@ class Tracker:
 
         width_rectangle = xcar2 - xcar1
         height_rectangle = ycar2 - ycar1
-
-
-        xmin_padded= max(xcar1-int(width_rectangle/int(self.config['factor_width'])),0)
-        ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
-        xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
-        ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
-        x = xmin_padded
-        y = ymin_padded
-        w = xmax_padded - xmin_padded
-        h = ymax_padded - ymin_padded
         
-        segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+    
+        #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax),(0, 255, 255), 2)
+        # Calculate the center of the square
+        center_x = (xmin + xmax) // 2
+        center_y = (ymin + ymax) // 2
+
+        # Reduce the size of the square by 60%
+        reduction_factor = 0.6
+        new_width = (xmax - xmin) * (1 - reduction_factor)
+        new_height = (ymax - ymin) * (1 - reduction_factor)
+
+        # Calculate new coordinates
+        xmin_new = int(center_x - new_width / 2)
+        ymin_new = int(center_y - new_height / 2)
+        xmax_new = int(center_x + new_width / 2)
+        ymax_new = int(center_y + new_height / 2)
+
+        #cv2.rectangle(frame, (xmin_new, ymin_new), (xmax_new, ymax_new),(0, 255, 255), 2)
+        
+        segment_photo = frame[ymin_new:ymax_new,xmin_new:xmax_new]
+        
+        cv2.imwrite("/opt/alice-media/ocr/after{}.jpg".format(time.time()), segment_photo)
+        
+        
+        x = xmin_new
+        y = ymin_new
+        w = xmax_new - xmin_new
+        h = ymax_new - ymin_new
+        
+        
+       
+        
         return {
             "segment_photo":segment_photo,
             "x":x,
@@ -333,7 +365,7 @@ class Tracker:
             "height":h
         }
 
-    def prepareJson(self,track,frame):
+    def prepareJson(self,track,frame, segment_frame=None):
         if self.padding is not None:
             height_frame, width_frame, _ = frame.shape
             xcar1, ycar1, xcar2, ycar2 = track
@@ -351,7 +383,10 @@ class Tracker:
             xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
             ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
             
-            segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+            if segment_frame is None:
+                segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+            else:
+                segment_photo = segment_frame['segment_photo']
             evidence = self.generateFolders(frame,segment_photo)
 
             x = xmin_padded
@@ -409,7 +444,7 @@ class Tracker:
                 self.plate_chars=  plate_chars
                 if getJson is None:
                     print("HERE")
-                    getJson = self.prepareJson(track,frame)
+                    getJson = self.prepareJson(track,frame,segment_frame)
                     print("HERE2")
                     getJson['plate_chars']= self.clearResult(self.plate_chars)
                 #stop
@@ -485,11 +520,7 @@ class Tracker:
                 self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
                 
             self.badPrediction = None
-            while not self.queue.empty():
-                try:
-                    self.queue.get_nowait()
-                except queue.Empty:
-                    continue
+            
 
             
             self.padding = None

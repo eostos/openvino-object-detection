@@ -245,6 +245,7 @@ def platePredict(MYNET, classNames, detection_img, USE_GPU=False):
 	#predict_rs = []
 	#confidence_rs = []
 	# REMOVE COLORS
+	
 	H, W, CH = detection_img.shape
 	if CH == 3:
 		detection_img = cv2.cvtColor(detection_img, cv2.COLOR_BGR2GRAY)
@@ -438,6 +439,7 @@ def findRelatMinMaxBounds(detections):
 	bboxes = [detection[2] for detection in detections]
 	if(len(bboxes)<1):
 		return None
+	
 	# CALC MINMAX BOUNDS
 	#if DEBUG_HERE: print('bboxes: ', bboxes)
 	min_x =  99
@@ -447,6 +449,12 @@ def findRelatMinMaxBounds(detections):
 	for bounds in bboxes:
 		# GET RELATIVE BOX
 		relBox = YoloBox2RelatiBox(bounds)
+		
+		try:
+			rel_bboxes = np.clip(relBox, 0, 1)
+		except Exception as w:
+			print(w)
+		
 		v1_x = relBox[0]
 		v1_y = relBox[1]
 		v2_x = v1_x + relBox[2]
@@ -463,7 +471,8 @@ def findRelatMinMaxBounds(detections):
 		max_x = max(max_x, v2_x)
 		max_y = max(max_y, v2_y)
 		# DEBUG
-		#if DEBUG_HERE: print(round(v1_x,4),' ',round(v1_y,4),' ',round(v2_x,4),' ',round(v2_y,4))
+		
+		if DEBUG_HERE: print(round(v1_x,4),' ',round(v1_y,4),' ',round(v2_x,4),' ',round(v2_y,4))
 	   
 	# CHECK THAT THE VERTICES ARE WITHIN A SAFE RANGE
 	min_x = clamp(min_x, 0, 1)

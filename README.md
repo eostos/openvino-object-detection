@@ -48,3 +48,46 @@ class TrtYOLO(object):
  
 python3 cuda_object_detection.py --image dog.jpg  -m yolov4-tiny-288
 
+## Change the makefile of the plugin for support multiple video cards
+```makefile
+CC=g++
+LD=ld
+CXXFLAGS=-Wall -std=c++11 -g -O
+
+NVCC=nvcc
+
+# Get available compute capabilities dynamically for all GPUs
+compute_list := $(shell python gpu_cc.py)
+
+# Space separated compute values, if not present will fetch each device's CC
+computes ?= $(compute_list)
+
+# Build ARCH for each specified compute capability
+ARCH := $(foreach cc,$(computes),-gencode arch=compute_$(cc),code=sm_$(cc))
+
+NVCCFLAGS += $(ARCH)
+
+$(info Using compute capabilities: $(computes))
+
+# These are the directories where I installed TensorRT on my x86_64 PC.
+TENSORRT_INCS=-I"/usr/local/TensorRT-7.1.3.4/include"
+TENSORRT_LIBS=-L"/usr/local/TensorRT-7.1.3.4/lib"
+
+# INCS and LIBS
+INCS=-I"/usr/local/cuda/include" $(TENSORRT_INCS) -I"/usr/local/include" -I"plugin"
+LIBS=-L"/usr/local/cuda/lib64" $(TENSORRT_LIBS) -L"/usr/local/lib" -Wl,--start-group -lnvinfer -lnvparsers -lnvinfer_plugin -lcudnn -lcublas -lnvToolsExt -lcudart -lrt -ldl -lpthread -Wl,--end-group
+
+.PHONY: all clean
+
+all: libyolo_layer.so
+
+clean:
+	rm -f *.so *.o
+
+libyolo_layer.so: yolo_layer.o
+	$(CC) -shared -o $@ $< $(LIBS)
+
+yolo_layer.o: yolo_layer.cu yolo_layer.h
+	$(NVCC) -ccbin $(CC) $(INCS) $(NVCCFLAGS) -Xcompiler -fPIC -c -o $@ $<
+```
+

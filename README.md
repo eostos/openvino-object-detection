@@ -46,6 +46,17 @@ class TrtYOLO(object):
 
     def _load_engine(self):
         TRTbin = './models/%s.trt' % self.model
- 
-python3 cuda_object_detection.py --image dog.jpg  -m yolov4-tiny-288
-
+ ##RUN IN CONSOLE AND DOCKER
+#CONSOLE  CPU 
+python3 jcuda.py
+in config file change the url in "model" to absulute path /models/$model_to_run
+generally are:
+ssdlite_mobilenet_v2.xml Â°
+##DOCKER GPU 
+python3 object_detection_demo.py
+change the url of the "model" to the name of the model to be choosen 
+Generally are : 
+"model"Ã: $model_to_run
+yolov4-tiny-416
+yolov4-tiny-288
+yolov4-tiny-608

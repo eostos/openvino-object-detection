@@ -1,6 +1,6 @@
 {
     "id": "1",
-    "country":"CO",
+    "country":"MN",
     "manager_id": "c01762ca-5045-4603-aa60-893af66d04b2",
     "device_id": "c01762ca-5045-4603-aa60-893af66d04b2",
     "top_vid_path": "",
@@ -28,14 +28,14 @@
     "recog_all": 1,
     "use_cascade": 0,
     "step_udp_stream": 6,
-    "regular_expressions":["ABC123","6277СЭҮ"],
-    "device":"CPU",
+    "regular_expressions":["8171УБО"],
+    "device":"GPU",
     "ocr_http" :0,
-    "ocr_port": 15803,
+    "ocr_port": 15802,
     "ocr_ip":"http://127.0.0.1",
     "ocr_grcp":0,
-    "ocr_grcp_port":14501,
-    "ocr_grcp_ip":"localhost",
+    "ocr_grcp_port":14801,
+    "ocr_grcp_ip":"10.71.71.36",
     "factor_width":4,
     "factor_height":4,
     "prom_frame":0.12,
@@ -85,8 +85,8 @@
         "roi_limits": [
             0.0032,
             0.53,
-            0.882,
-            0.8523
+            0.992,
+            0.9923
         ],
         "fast_mode": 0,
         "fhogx": 48,

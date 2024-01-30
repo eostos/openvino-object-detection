@@ -4,9 +4,10 @@ This script demonstrates how to do real-time object detection with
 TensorRT optimized YOLO engine.
 """
 
+from memory_profiler import profile
+from concurrent.futures import ThreadPoolExecutor
 
 import os
-import time
 import argparse
 
 import cv2
@@ -77,7 +78,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-
+@profile
 def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,prediction):
     """Continuously capture images from camera and do object detection.
         pip3 install
@@ -101,73 +102,83 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
     
     #cap = cv2.VideoCapture(conf_dict["vid_path"])
     cont=0
-    while True:
-        if not cam.isOpened():
-            time.sleep(5)
-            raise SystemExit('ERROR: failed to open the input video file!')
+    try:
+        while True:
+            if not cam.isOpened():
+                time.sleep(5)
+                raise SystemExit('ERROR: failed to open the input video file!')
+            
+            ret,img = cam.read()  # Read a frame
+            if img is None:  break
+            #img = cam.read()
+            if img is not None:
+                height_frame, width_frame, _ = img.shape
+                padding =int(height_frame/5)
+                cont=cont+1
+                #if img is None:
+                #    break
+                boxes, confs, clss = trt_yolo.detect(img, conf_th)
+                #print("boxes ",boxes)
+                detections_= []
+                
+                for index ,detection in enumerate(boxes):
+                    
+                    xmin, ymin, xmax, ymax = detection
+                    width_rectangle = xmax - xmin
+                    height_rectangle = ymax - ymin
+                    #xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
+                    #ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
+                    #xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
+                    #ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
+
+                    detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,confs[index]])
+                    
+                try :
+                    if detections_ :
+                        tracker.run(np.asarray(detections_), 2)
+                except Exception as e:
+                    pass
+                
+                tracks = tracker.get_tracks(2)
+                frame_to_save = img.copy()
+                with ThreadPoolExecutor() as executor:
+                    executor.submit(device.set_trackers, tracks, frame_to_save, prediction, detections_, padding, stub)
+
+                img = vis.draw_bboxes(img, boxes, confs, clss)
+                img = show_fps(img, fps)
+                roi_limits = conf_dict['alter_config']['roi_limits']
+                rxmin = int(roi_limits[0] * width_frame)
+                rymin = int(roi_limits[1] * height_frame)
+                rxmax = int(roi_limits[2] * width_frame)
+                rymax = int(roi_limits[3] * height_frame)
+                cv2.rectangle(img, (rxmin, rymin), (rxmax, rymax), (0, 255, 0), 2)
+                util.send_video(img,connect_redis,conf_dict["device_id"])
+                #print(len(boxes))
+                #if len(boxes) >= 1 :
+                #   cv2.imwrite('output_image_'+str(cont)+".jpg", img)
+                #   print('Image saved successfully.')   
+                #cv2.imshow(WINDOW_NAME, img)
+                toc = time.time()
+                curr_fps = 1.0 / (toc - tic)
+                # calculate an exponentially decaying average of fps number
+                fps = curr_fps if fps == 0.0 else (fps*0.95 + curr_fps*0.05)
+                tic = toc
+                #key = cv2.waitKey(1)
+                #if key == 27:  # ESC key: quit program
+                #    break
+                #elif key == ord('F') or key == ord('f'):  # Toggle fullscreen
+                #    full_scrn = not full_scrn
+                #    set_display(WINDOW_NAME, full_scrn)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Cleaning up...")
+    finally:
+        cam.release()
+        cv2.destroyAllWindows()
+        print("Cleanup completed. Exiting.")
         
-        ret,img = cam.read()  # Read a frame
-        if img is None:  break
-        #img = cam.read()
-        if img is not None:
-            height_frame, width_frame, _ = img.shape
-            padding =int(height_frame/5)
-            cont=cont+1
-            #if img is None:
-            #    break
-            boxes, confs, clss = trt_yolo.detect(img, conf_th)
-            #print("boxes ",boxes)
-            detections_= []
-            
-            for index ,detection in enumerate(boxes):
-                
-                xmin, ymin, xmax, ymax = detection
-                width_rectangle = xmax - xmin
-                height_rectangle = ymax - ymin
-                #xmin_padded= max(xmin-int(width_rectangle/int(conf_dict['factor_width'])),0)
-                #ymin_padded= max(ymin-int(height_rectangle/int(conf_dict['factor_height'])),0)
-                #xmax_padded= min(xmax+int(width_rectangle/int(conf_dict['factor_width'])),width_frame)
-                #ymax_padded= min(ymax+int(height_rectangle/int(conf_dict['factor_height'])),height_frame)
-
-                detections_.append([xmin-padding, ymin-padding, xmax+padding, ymax+padding,confs[index]])
-                
-            try :
-                if detections_ :
-                    tracker.run(np.asarray(detections_), 2)
-            except Exception as e:
-                pass
-            
-            tracks = tracker.get_tracks(2)
-            frame_to_save = img.copy()
-
-            threading.Thread(target=device.set_trackers, args=(tracks,frame_to_save,prediction,detections_,padding,stub)).start()
-            img = vis.draw_bboxes(img, boxes, confs, clss)
-            img = show_fps(img, fps)
-            roi_limits = conf_dict['alter_config']['roi_limits']
-            rxmin = int(roi_limits[0] * width_frame)
-            rymin = int(roi_limits[1] * height_frame)
-            rxmax = int(roi_limits[2] * width_frame)
-            rymax = int(roi_limits[3] * height_frame)
-            cv2.rectangle(img, (rxmin, rymin), (rxmax, rymax), (0, 255, 0), 2)
-            util.send_video(img,connect_redis,conf_dict["device_id"])
-            #print(len(boxes))
-            #if len(boxes) >= 1 :
-            #   cv2.imwrite('output_image_'+str(cont)+".jpg", img)
-            #   print('Image saved successfully.')   
-            #cv2.imshow(WINDOW_NAME, img)
-            toc = time.time()
-            curr_fps = 1.0 / (toc - tic)
-            # calculate an exponentially decaying average of fps number
-            fps = curr_fps if fps == 0.0 else (fps*0.95 + curr_fps*0.05)
-            tic = toc
-            #key = cv2.waitKey(1)
-            #if key == 27:  # ESC key: quit program
-            #    break
-            #elif key == ord('F') or key == ord('f'):  # Toggle fullscreen
-            #    full_scrn = not full_scrn
-            #    set_display(WINDOW_NAME, full_scrn)
+        
     print('\nDone.')
-
+@profile
 def main():
     args = parse_args()
     stub=None
@@ -199,6 +210,7 @@ def main():
         ocr_grcp_port = conf_dict['ocr_grcp_port']
         ocr_grcp        = conf_dict['ocr_grcp']
         ocr_http =  conf_dict['ocr_http']
+        model = conf_dict['model']
     except json.JSONDecodeError:
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:
@@ -228,17 +240,26 @@ def main():
     if not os.path.isfile('./models/%s.trt' % args.model):
         raise SystemExit('ERROR: file (models/%s.trt) not found!' % args.model)
 
-
+    trt_yolo = None
     cls_dict = get_cls_dict(args.category_num)
     vis = BBoxVisualization(cls_dict)
     print("loading model")
-    trt_yolo = TrtYOLO(args.model, args.category_num, args.letter_box)
+    try:
+        
+        trt_yolo = TrtYOLO(model, args.category_num, args.letter_box)
+        
+    except Exception as e :
+        with open("/opt/alice-media/error.txt", "w") as file:
+            file.write(f"{str(e)}")
+    if  trt_yolo is not None:
+        pass
+        loop_and_detect(cap, trt_yolo, args.conf_thresh, vis=vis,conf_dict=conf_dict,connect_redis=connect_redis,device=device,prediction=prediction)    
    
    # open_window(
    #     WINDOW_NAME, 'Camera TensorRT YOLO Demo',
    #     cam.img_width, cam.img_height)
     
-    loop_and_detect(cap, trt_yolo, args.conf_thresh, vis=vis,conf_dict=conf_dict,connect_redis=connect_redis,device=device,prediction=prediction)
+    
     
     cv2.destroyAllWindows()
 

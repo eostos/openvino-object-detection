@@ -1,0 +1,220 @@
+[
+	{
+		"config": "lpr_config",
+		"type": "lpr",
+		"params": [
+			{
+				"id": "1",
+				"country": "MN",
+				"manager_id": "c01762ca-5045-4603-aa60-893af66d04b2",
+				"device_id": "6a970e58-b60a-4735-b6ce-a1c4c84e2c16",
+				"top_vid_path": "",
+				"ip_stream": "127.0.0.1",
+				"port_stream": 5556,
+				"videoEvidence": 0,
+				"videoDuration": 3,
+				"fps_top": 20,
+				"use_overview": 0,
+				"port_overview": 29001,
+				"vid_path": "rtsp://Admin:1234@172.16.40.183/stream1",
+				"ip_rest": "http://127.0.0.1:9090/api/events",
+				"model": "yolov4-tiny-288",
+				"architecture_type": "ssd",
+				"port_rest": 9090,
+				"ip_redis": "127.0.0.1",
+				"port_redis": 6379,
+				"entry_type": null,
+				"debug": 0,
+				"speed_sensor": 0,
+				"speed_limit": -1,
+				"fps": 20,
+				"plates_proc": 3,
+				"use_subdet_only": 1,
+				"recog_all": 1,
+				"use_cascade": 0,
+				"step_udp_stream": 6,
+				"regular_expressions": [
+					"6277СЭҮ"
+				],
+				"device": "CPU",
+				"ocr_http": 0,
+				"ocr_port": 15803,
+				"ocr_ip": "http://127.0.0.1",
+				"ocr_grcp": 1,
+				"ocr_grcp_port": 14801,
+				"ocr_grcp_ip": "localhost",
+				"factor_width": 4,
+				"factor_height": 4,
+				"prom_frame": 0.12,
+				"treshold_plate": 0.47,
+				"car-config": {
+					"scales": [
+						0.7,
+						0.46,
+						0.35
+					],
+					"score": -1,
+					"roi_limits": [
+						0,
+						0.2,
+						1,
+						0.95
+					],
+					"fast_mode": 0,
+					"fhogx": 64,
+					"fhogy": 64
+				},
+				"plate-config": {
+					"scales": [
+						0.15,
+						0.19,
+						0.23,
+						0.29
+					],
+					"score": -0.5,
+					"roi_limits": [
+						0.1,
+						0.6,
+						0.9,
+						1
+					],
+					"fast_mode": 0,
+					"fhogx": 48,
+					"fhogy": 24
+				},
+				"alter-config": {
+					"scales": [
+						0.0592,
+						0.015,
+						0.014
+					],
+					"score": -0.05,
+					"roi_limits": [
+						0.012,
+						0.504,
+						0.965,
+						0.962
+					],
+					"fast_mode": 0,
+					"fhogx": 48,
+					"fhogy": 24,
+					"roi_scale": {
+						"left": "0.2212",
+						"top": "0.3600",
+						"width": 0.2804,
+						"height": 0.408,
+						"scale": 0.0592
+					}
+				},
+				"ModBus": 0,
+				"port_server_modbus": 10001,
+				"useLanes": 1,
+				"laneConfig": "configs/config.json",
+				"use_OCR": 1,
+				"wb_violation": null,
+				"wb_vio_time": 1,
+				"quadrants": [
+					1,
+					2
+				],
+				"white_box_limits": [
+					0.00326,
+					0.28738,
+					0.99891,
+					0.60971
+				],
+				"gpu_device": null,
+				"decoding_type": "H264",
+				"lanes_config": {
+					"lanes_id": "1",
+					"lane1": null,
+					"type1": null,
+					"turn1": null,
+					"lane2": null,
+					"type2": null,
+					"turn2": null,
+					"lane3": null,
+					"type3": null,
+					"turn3": null,
+					"lane4": null,
+					"type4": null,
+					"turn4": null,
+					"lane5": null,
+					"type5": null,
+					"turn5": null,
+					"lane6": null,
+					"type6": null,
+					"turn6": null,
+					"street_cam": null,
+					"top_view_cam": null
+				}
+			}
+		]
+	},
+	{
+		"config": "lanes_config",
+		"type": "lpr",
+		"params": [
+			{
+				"id": "1",
+				"lane1": [
+					0,
+					0,
+					1,
+					0,
+					1,
+					1,
+					0,
+					1
+				],
+				"type1": "R",
+				"turn1": 1,
+				"lane2": [
+
+				],
+				"type2": "R",
+				"turn2": 1,
+				"lane3": [
+
+				],
+				"type3": "",
+				"turn3": 0,
+				"lane4": [
+
+				],
+				"type4": "",
+				"turn4": 0,
+				"lane5": [
+
+				],
+				"type5": "",
+				"turn5": 0,
+				"lane6": [
+
+				],
+				"type6": "",
+				"turn6": 0,
+				"street_cam": [
+					478,
+					395,
+					2089,
+					343,
+					2130,
+					527,
+					585,
+					548
+				],
+				"top_view_cam": [
+					1088,
+					197,
+					1173,
+					306,
+					1129,
+					299,
+					1053,
+					211
+				]
+			}
+		]
+	}
+]

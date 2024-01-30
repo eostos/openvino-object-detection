@@ -13,3 +13,5 @@ pika
 protobuf==4.24.1
 grpcio==1.60.0
 grpcio-tools==1.60.0
+gdown
+memory-profiler

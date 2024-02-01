@@ -220,6 +220,7 @@ def getConfigs(file_path, is_docker=False):
             treshold_plate = data["treshold_plate"]
             regular_expressions = data["regular_expressions"]
             alter_config = data["alter-config"]
+            limit_ram = data['limit_ram']
             
 
 
@@ -251,7 +252,8 @@ def getConfigs(file_path, is_docker=False):
                 'ocr_grcp':ocr_grcp,
                 'regular_expressions':regular_expressions,
                 'ocr_http' : ocr_http,
-                'alter_config':alter_config
+                'alter_config':alter_config,
+                'limit_ram':limit_ram
 
                 
             }

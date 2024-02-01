@@ -2,7 +2,7 @@
 #/bin/bash
 dire="/opt/alice-media/models"
 if [ -d "$dire" ]; then
-    cp -r /opt/alice-media/models /opt/alice-object&
+    cp -r /opt/alice-media/models /opt/openvino-object/&
     wait
 else
     cp -r ./models /opt/alice-media&

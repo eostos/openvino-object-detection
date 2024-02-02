@@ -129,7 +129,7 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
                 #if img is None:
                 #    break
                 boxes, confs, clss = trt_yolo.detect(img, conf_th)
-                print(boxes, confs, clss)
+               
                 detections_= []
                 
                 for index ,detection in enumerate(boxes):

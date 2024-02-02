@@ -5,6 +5,7 @@ import grpc
 from concurrent import futures
 import grcp.proto3.model_service_proto_pb2 as model_ppb2
 import grcp.proto3.model_service_proto_pb2_grpc as model_grcp
+
 import numpy as np
 
 def get_memory_usage():
@@ -15,8 +16,8 @@ def get_memory_usage():
 rtsp_url = 'rtsp://admin:admin@172.172.3.21:8554/CH001.sdp'
 
 # Configura la conexión gRPC
-with grpc.insecure_channel("localhost:50051") as channel:
-    stub = model_grcp.ImageServiceStub(channel)
+with grpc.insecure_channel("localhost:50052") as channel:
+    stub = model_grcp.TrtYoloServiceStub(channel)
 
     # Open RTSP stream
     cap = cv2.VideoCapture(rtsp_url)
@@ -48,8 +49,8 @@ with grpc.insecure_channel("localhost:50051") as channel:
         image_bytes = image_bytes.tobytes()
         # Prepara la solicitud gRPC
         
-        future_response = stub.UploadImage.future(model_ppb2.ImageUploadRequest(image=image_bytes))       
-        print(future_response.result())
+        stub.UploadImage(model_ppb2.ImageUploadRequest(image=image_bytes))       
+        #print(future_response)
         # Envía la solicitud al servidor gRPC
         
 

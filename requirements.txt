@@ -1,4 +1,4 @@
-opencv-python
+opencv-python==4.9.0.80
 scipy>=1.5.4
 numpy>=1.16.6
 pillow>=8.1.2

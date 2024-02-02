@@ -24,5 +24,13 @@ else
     echo "El archivo existe."  
 fi
 
+if [ -z "$vid_path" ]; then
+   vid_path=$(jq '.vid_path' config.json)
+   
+else 
+    echo "El archivo existe."  
+fi
+
 echo "$vid_path"
+/bin/bash
 python3 jcuda.py  -i $vid_path 

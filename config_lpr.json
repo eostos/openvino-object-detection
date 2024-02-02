@@ -8,6 +8,7 @@
 				"country": "MN",
 				"manager_id": "c01762ca-5045-4603-aa60-893af66d04b2",
 				"device_id": "6a970e58-b60a-4735-b6ce-a1c4c84e2c16",
+				"limit_ram":3000,
 				"top_vid_path": "",
 				"ip_stream": "127.0.0.1",
 				"port_stream": 5556,

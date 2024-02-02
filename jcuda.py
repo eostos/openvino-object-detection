@@ -30,6 +30,7 @@ from httpOCRpy.server import OCR
 import image_service_pb2
 import image_service_pb2_grpc
 import grpc
+import psutil
 
 import pycuda.autoinit  # This is needed for initializing CUDA driver
 
@@ -43,9 +44,12 @@ tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
 
 WINDOW_NAME = 'TrtYOLODemo'
 
+def get_memory_usage():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / (1024 * 1024)  # En megabytes
+
 def is_running_in_docker():
-    # Docker crea un archivo .dockerenv en la raíz del sistema de archivos del contenedor.
-    # La presencia de este archivo puede ser un buen indicador.
+    
     path = "/.dockerenv"
     return os.path.exists(path)
 
@@ -80,6 +84,7 @@ def parse_args():
 
 @profile
 def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,prediction):
+   
     """Continuously capture images from camera and do object detection.
         pip3 install
     # Arguments
@@ -104,11 +109,17 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
     cont=0
     try:
         while True:
+            total = get_memory_usage()
+            if int(total)>conf_dict['limit_ram']:
+                raise SystemExit('ERROR: Memory Limit')
+                
+            
+            ret,img = cam.read()  # Read a frame
             if not cam.isOpened():
                 time.sleep(5)
                 raise SystemExit('ERROR: failed to open the input video file!')
             
-            ret,img = cam.read()  # Read a frame
+           
             if img is None:  break
             #img = cam.read()
             if img is not None:
@@ -118,7 +129,7 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
                 #if img is None:
                 #    break
                 boxes, confs, clss = trt_yolo.detect(img, conf_th)
-                #print("boxes ",boxes)
+               
                 detections_= []
                 
                 for index ,detection in enumerate(boxes):
@@ -169,6 +180,7 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
                 #elif key == ord('F') or key == ord('f'):  # Toggle fullscreen
                 #    full_scrn = not full_scrn
                 #    set_display(WINDOW_NAME, full_scrn)
+    
     except KeyboardInterrupt:
         print("\nInterrupted by user. Cleaning up...")
     finally:
@@ -211,6 +223,7 @@ def main():
         ocr_grcp        = conf_dict['ocr_grcp']
         ocr_http =  conf_dict['ocr_http']
         model = conf_dict['model']
+        limit_ram = conf_dict['limit_ram']
     except json.JSONDecodeError:
         print("Error: Failed to parse the configuration parameters.")
     except KeyError:

@@ -6,6 +6,8 @@ import json
 import os
 import redis
 import cv2
+import traceback
+
 #import easyocr
 
 # Initialize the OCR reader
@@ -25,6 +27,10 @@ dict_int_to_char = {'0': 'O',
                     '4': 'A',
                     '6': 'G',
                     '5': 'S'}
+
+def is_running_in_docker():
+    path = "/.dockerenv"
+    return os.path.exists(path)
 
 def send_video(image, connect_redis,device_id):
     # Resize the image to 320x240
@@ -190,6 +196,7 @@ def getConfigs(file_path, is_docker=False):
             data = json.load(file)
             
             if is_docker:
+                
                 data = data[0]['params'][0]
 
             # Extracting fields
@@ -220,6 +227,7 @@ def getConfigs(file_path, is_docker=False):
             treshold_plate = data["treshold_plate"]
             regular_expressions = data["regular_expressions"]
             alter_config = data["alter-config"]
+            limit_ram = data['limit_ram']
             
 
 
@@ -251,7 +259,8 @@ def getConfigs(file_path, is_docker=False):
                 'ocr_grcp':ocr_grcp,
                 'regular_expressions':regular_expressions,
                 'ocr_http' : ocr_http,
-                'alter_config':alter_config
+                'alter_config':alter_config,
+                'limit_ram':limit_ram
 
                 
             }
@@ -262,6 +271,7 @@ def getConfigs(file_path, is_docker=False):
         print(f"File Error: {e}")
         return None
     except KeyError as e:
+        traceback.print_exc()
         print(f"Error: Missing field in JSON data - {e}")
         return None
     except json.JSONDecodeError as e:

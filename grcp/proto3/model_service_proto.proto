@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package trt_yolo;
+
+// El mensaje de solicitud contiene la imagen en forma de bytes.
+message ImageUploadRequest {
+    bytes image = 1;
+}
+
+// Nuevo mensaje de respuesta con tres arrays: boxes, confs, clss.
+message DetectionResponse {
+    repeated Box boxes = 1;
+    repeated float confs = 2;
+    repeated int32 clss = 3;
+}
+
+// Mensaje para representar una caja de detección
+message Box {
+    float x_min = 1;
+    float y_min = 2;
+    float x_max = 3;
+    float y_max = 4;
+}
+
+// Definición del servicio
+service TrtYoloService {
+    // Define un método para subir imágenes
+    rpc UploadImage(ImageUploadRequest) returns (DetectionResponse);
+}

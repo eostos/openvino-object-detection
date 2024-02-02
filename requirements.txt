@@ -2,7 +2,7 @@ opencv-python
 scipy>=1.5.4
 numpy>=1.16.6
 pillow>=8.1.2
-openvino-dev
+#openvino-dev
 filterpy==1.4.5
 sort-tracker
 redis
@@ -10,6 +10,8 @@ opencv-contrib-python
 requests
 loguru
 pika
-protobuf==4.25.1
+protobuf==4.24.1
 grpcio==1.60.0
 grpcio-tools==1.60.0
+gdown
+memory-profiler

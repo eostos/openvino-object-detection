@@ -11,8 +11,7 @@ import time
 import sys
 from pathlib import Path
 import image_service_pb2
-import image_service_pb2_grpc
-import grpc
+
 import re
 import queue
 import threading

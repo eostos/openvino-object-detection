@@ -12,6 +12,7 @@ RUN mkdir /opt/alice-lpr-gpu/
 
 COPY  . .
 RUN cp config.json /opt/alice-lpr-gpu/
+RUN python3 -m pip install -r requirements.txt
 
 RUN chmod +x entrypoint.sh
 

@@ -22,6 +22,7 @@ https://github.com/jkjung-avt/tensorrt_demos.git
 Install pluguins and all related in Demo# 5 in the repository above mentioned.
 
 tensorrt version 7.1.3.4 for Ubuntu 18.04 it should be installed for c++ and python 
+https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html#installing-tar.
 (Install the Python TensorRT wheel file (replace cp3x with the desired Python version, for example, cp310 for Python 3.10).
 cd TensorRT-${version}/python
 
@@ -45,6 +46,66 @@ class TrtYOLO(object):
 
     def _load_engine(self):
         TRTbin = './models/%s.trt' % self.model
+
+ ##RUN IN CONSOLE AND DOCKER
+#CONSOLE  CPU 
+python3 jcuda.py
+in config file change the url in "model" to absulute path /models/$model_to_run
+generally are:
+ssdlite_mobilenet_v2.xml °
+##DOCKER GPU 
+python3 object_detection_demo.py
+change the url of the "model" to the name of the model to be choosen 
+Generally are : 
+"model"�: $model_to_run
+yolov4-tiny-416
+yolov4-tiny-288
+yolov4-tiny-608
+
  
 python3 cuda_object_detection.py --image dog.jpg  -m yolov4-tiny-288
+
+## Change the makefile of the plugin for support multiple video cards
+```makefile
+CC=g++
+LD=ld
+CXXFLAGS=-Wall -std=c++11 -g -O
+
+NVCC=nvcc
+
+# Get available compute capabilities dynamically for all GPUs
+compute_list := $(shell python gpu_cc.py)
+
+# Space separated compute values, if not present will fetch each device's CC
+computes ?= $(compute_list)
+
+# Build ARCH for each specified compute capability
+ARCH := $(foreach cc,$(computes),-gencode arch=compute_$(cc),code=sm_$(cc))
+
+NVCCFLAGS += $(ARCH)
+
+$(info Using compute capabilities: $(computes))
+
+# These are the directories where I installed TensorRT on my x86_64 PC.
+TENSORRT_INCS=-I"/usr/local/TensorRT-7.1.3.4/include"
+TENSORRT_LIBS=-L"/usr/local/TensorRT-7.1.3.4/lib"
+
+# INCS and LIBS
+INCS=-I"/usr/local/cuda/include" $(TENSORRT_INCS) -I"/usr/local/include" -I"plugin"
+LIBS=-L"/usr/local/cuda/lib64" $(TENSORRT_LIBS) -L"/usr/local/lib" -Wl,--start-group -lnvinfer -lnvparsers -lnvinfer_plugin -lcudnn -lcublas -lnvToolsExt -lcudart -lrt -ldl -lpthread -Wl,--end-group
+
+.PHONY: all clean
+
+all: libyolo_layer.so
+
+clean:
+	rm -f *.so *.o
+
+libyolo_layer.so: yolo_layer.o
+	$(CC) -shared -o $@ $< $(LIBS)
+
+yolo_layer.o: yolo_layer.cu yolo_layer.h
+	$(NVCC) -ccbin $(CC) $(INCS) $(NVCCFLAGS) -Xcompiler -fPIC -c -o $@ $<
+```
+
 

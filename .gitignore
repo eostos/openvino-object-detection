@@ -1,6 +1,6 @@
 ./open_model_zoo
 ./tensorrt_demos
-cls/__pycache__/clsDevice.cpython-310.pyc
+cls/__pycache__
 cls/__pycache__/clsTracker.cpython-310.pyc
 cls/__pycache__/clsDevice.cpython-310.pyc
 cls/__pycache__/clsTracker.cpython-310.pyc
@@ -8,3 +8,7 @@ cls/__pycache__/clsDevice.cpython-310.pyc
 cls/__pycache__/clsTracker.cpython-310.pyc
 cls/__pycache__/sort.cpython-310.pyc
 httpOCRpy/__pycache__/server.cpython-310.pyc
+__pycache__/image_service_pb2_grpc.cpython-37.pyc
+__pycache__/image_service_pb2.cpython-37.pyc
+__pycache__/util.cpython-37.pyc
+__pycache__

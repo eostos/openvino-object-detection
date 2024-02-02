@@ -14,7 +14,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-
+from memory_profiler import profile
+from concurrent.futures import ThreadPoolExecutor
 import logging as log
 import sys
 from argparse import ArgumentParser, SUPPRESS
@@ -35,7 +36,7 @@ from cls.clsDevice import Device
 import traceback
 import os
 import threading
-import tracemalloc
+
 
 def display_top(snapshot, key_type='lineno', limit=10):
     top_stats = snapshot.statistics(key_type)
@@ -177,7 +178,6 @@ def build_argparser():
                             default=False, action='store_true')
     return parser
 
-
 def draw_detections(frame, detections, palette, labels, output_transform):
     frame = output_transform.resize(frame)
     for detection in detections:
@@ -206,8 +206,8 @@ def print_raw_results(detections, labels, frame_id):
         log.debug('{:^9} | {:10f} | {:4} | {:4} | {:4} | {:4} '
                   .format(det_label, detection.score, xmin, ymin, xmax, ymax))
 
+@profile
 def main():
-    tracemalloc.start()
     try:
         ####################
         stub=None
@@ -368,6 +368,7 @@ def main():
                             pass
                             #print(ymin_padded,ymax_padded, xmin_padded,xmax_padded,"[coord]")
                             recorte1 = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+                            #cv2.imwrite("/opt/alice-media/ocr/pre{}.jpg".format(time.time()), recorte1)
                             #util.send_video(recorte1,connect_redis,device_id)
                             #cv2.imshow("simulate ocr",recorte1)   
                         except Exception as e:
@@ -387,8 +388,10 @@ def main():
                     print("error ",e)
                     traceback.print_exc()
                 tracks = tracker.get_tracks(2)
-               
-                threading.Thread(target=device.set_trackers, args=(tracks,sendframe,prediction,detections_,padding,stub)).start()
+                with ThreadPoolExecutor() as executor:
+                    executor.submit(device.set_trackers, tracks, sendframe, prediction, detections_, padding, stub)
+                    
+                #threading.Thread(target=device.set_trackers, args=(tracks,sendframe,prediction,detections_,padding,stub)).start()
                 #device.set_trackers()
                 
                 
@@ -405,7 +408,7 @@ def main():
                 rymax = int(roi_limits[3] * height_frame)
 
                 # Dibuja el rectángulo en la imagen
-                sendFrame = frame.copy()
+                #sendFrame = frame.copy()
                 cv2.rectangle(frame, (rxmin, rymin), (rxmax, rymax), (0, 255, 0), 2)
 
                 util.send_video(frame,connect_redis,device_id)
@@ -457,52 +460,54 @@ def main():
             wait_time = max(0, frame_time - elapsed_time)
             time.sleep(wait_time)
 
+    
+            
+            
+        detector_pipeline.await_all()
+        if detector_pipeline.callback_exceptions:
+            sys.exit(0)
+            raise detector_pipeline.callback_exceptions[0]
+        # Process completed requests
+        for next_frame_id_to_show in range(next_frame_id_to_show, next_frame_id):
+            results = detector_pipeline.get_result(next_frame_id_to_show)
+            objects, frame_meta = results
+            frame = frame_meta['frame']
+            start_time = frame_meta['start_time']
+
+            if len(objects) and args.raw_output_message:
+                pass
+                #print_raw_results(objects, model.labels, next_frame_id_to_show)
+
+            presenter.drawGraphs(frame)
+            rendering_start_time = perf_counter()
+            #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
+            render_metrics.update(rendering_start_time)
+            metrics.update(start_time, frame)
+
+            if video_writer.isOpened() and (args.output_limit <= 0 or next_frame_id_to_show <= args.output_limit-1):
+                video_writer.write(frame)
+
+            #if not args.no_show:
+                #cv2.imshow('Detection Results', frame)
+                #key = cv2.waitKey()
+
+        ##metrics.log_total()
+        log_latency_per_stage(cap.reader_metrics.get_latency(),
+                            detector_pipeline.preprocess_metrics.get_latency(),
+                            detector_pipeline.inference_metrics.get_latency(),
+                            detector_pipeline.postprocess_metrics.get_latency(),
+                            render_metrics.get_latency())
+        for rep in presenter.reportMeans():
+            log.info(rep)
+            
+            
     except KeyboardInterrupt:
-        print("\nInterrupción del teclado detectada, finalizando el seguimiento...")
+        print("\nInterrupted by user. Cleaning up...")
+    finally:
+        #cam.release()
+        cv2.destroyAllWindows()
+        print("Cleanup completed. Exiting.")
 
-        snapshot = tracemalloc.take_snapshot()
-        display_top(snapshot)
-        
-    detector_pipeline.await_all()
-    if detector_pipeline.callback_exceptions:
-        sys.exit(0)
-        raise detector_pipeline.callback_exceptions[0]
-    # Process completed requests
-    for next_frame_id_to_show in range(next_frame_id_to_show, next_frame_id):
-        results = detector_pipeline.get_result(next_frame_id_to_show)
-        objects, frame_meta = results
-        frame = frame_meta['frame']
-        start_time = frame_meta['start_time']
-
-        if len(objects) and args.raw_output_message:
-            pass
-            #print_raw_results(objects, model.labels, next_frame_id_to_show)
-
-        presenter.drawGraphs(frame)
-        rendering_start_time = perf_counter()
-        #frame = draw_detections(frame, objects, palette, model.labels, output_transform)
-        render_metrics.update(rendering_start_time)
-        metrics.update(start_time, frame)
-
-        if video_writer.isOpened() and (args.output_limit <= 0 or next_frame_id_to_show <= args.output_limit-1):
-            video_writer.write(frame)
-
-        #if not args.no_show:
-            #cv2.imshow('Detection Results', frame)
-            #key = cv2.waitKey()
-
-    ##metrics.log_total()
-    log_latency_per_stage(cap.reader_metrics.get_latency(),
-                          detector_pipeline.preprocess_metrics.get_latency(),
-                          detector_pipeline.inference_metrics.get_latency(),
-                          detector_pipeline.postprocess_metrics.get_latency(),
-                          render_metrics.get_latency())
-    for rep in presenter.reportMeans():
-        log.info(rep)
-        
-        
-    print("break while")    
-    sys.exit(0)
 
 
 if __name__ == '__main__':

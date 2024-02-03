@@ -362,6 +362,7 @@ class Tracker:
             print(w)
             import traceback
             traceback.print_exc()
+            
 
     def prepareJson(self,track,frame, segment_frame=None):
         if self.padding is not None:

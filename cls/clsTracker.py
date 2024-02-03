@@ -11,8 +11,7 @@ import time
 import sys
 from pathlib import Path
 import image_service_pb2
-import image_service_pb2_grpc
-import grpc
+
 import re
 import queue
 import threading
@@ -438,7 +437,7 @@ class Tracker:
             return datos
    
     def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
-        if plate_chars != 'EMPTY' and len(plate_chars)>3:
+        if  len(plate_chars)>3:
             if issend:
                 self.plate_chars=  plate_chars
                 if getJson is None:
@@ -451,7 +450,7 @@ class Tracker:
                 self.sendAG(getJson)
             else:
                 eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson)
-                #self.badPrediction.append(eventToqueue)
+                self.badPrediction.append(eventToqueue)
                 eventToqueue = None
         
                                  
@@ -496,7 +495,7 @@ class Tracker:
         
 
     def destroy(self):
-        #print("[DESTROY] ",len(self.badPrediction))
+        print("[DESTROY] ",len(self.badPrediction))
         
         if not self.issend:
             max_prob_event = None
@@ -515,7 +514,7 @@ class Tracker:
                         if len(event.prediction)>len(max_prob_event.prediction):
                             max_prob_event = event
             if max_prob_event is not None:
-               
+                print("send  by destroy")
                 self.beforeReport(True,max_prob_event.prediction,max_prob_event.prob,max_prob_event.track,max_prob_event.frame,None,max_prob_event.segment_frame)
                 
             self.badPrediction = None

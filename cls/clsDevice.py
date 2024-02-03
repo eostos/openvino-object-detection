@@ -5,6 +5,7 @@ import re
 import json
 import redis
 import re
+from memory_profiler import profile
 
 def generate_regex(example):
     if not isinstance(example, str):

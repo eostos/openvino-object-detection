@@ -1,8 +1,14 @@
 {
     "id": "1",
     "country":"MN",
+<<<<<<< HEAD
     "manager_id": "c01762ca-5045-4603-aa60-893af66d04b2",
     "device_id": "34704857-f746-43b7-a35a-562ddd732590",
+=======
+    "manager_id": "adbc5650-6249-4dea-9c95-296a41a49c00",
+    "device_id": "adbc5650-6249-4dea-9c95-296a41a49c00",
+    "limit_ram": 2000,
+>>>>>>> e6689fe4af98b7984dfe0a0021c56eb3986134ca
     "top_vid_path": "",
     "ip_stream": "127.0.0.1",
     "port_stream": 5556,
@@ -11,10 +17,14 @@
     "fps_top": 20,
     "use_overview": 0,
     "port_overview": 29001,
+<<<<<<< HEAD
     "vid_path1": "/edgar1/mng_blu_plates/2023-11-23_10-20-27.mp4",
     "vid_path": "/edgar1/mng_blu_plates/2024-01-29_15-27-18_cross.mp4",
+=======
+    "vid_path": "rtsp://admin:admin@172.172.3.21:8554/CH001.sdp",
+>>>>>>> e6689fe4af98b7984dfe0a0021c56eb3986134ca
     "ip_rest": "http://127.0.0.1:9090/api/events",
-    "model":"models/ssdlite_mobilenet_v2.xml",
+    "model":"yolov4-tiny-288",
     "architecture_type":"ssd",
     "port_rest": 9090,
     "ip_redis": "127.0.0.1",
@@ -33,10 +43,10 @@
     "device":"CPU",
     "ocr_http" :0,
     "ocr_port": 15803,
-    "ocr_ip":"http://127.0.0.1",
-    "ocr_grcp":0,
-    "ocr_grcp_port":14501,
-    "ocr_grcp_ip":"localhost",
+    "ocr_ip":"http://172.17.0.4",
+    "ocr_grcp":1,
+    "ocr_grcp_port":14801,
+    "ocr_grcp_ip":"127.0.0.1",
     "factor_width":4,
     "factor_height":4,
     "prom_frame":0.12,

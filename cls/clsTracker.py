@@ -15,7 +15,7 @@ import image_service_pb2
 import re
 import queue
 import threading
-
+import asyncio
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -86,11 +86,12 @@ class Tracker:
             }
         
         self.events.append(event)
+        asyncio.run(self.processqueue())
         
         #self.queue.put(event)
 
 
-    def processqueue(self):
+    async def processqueue(self):
         if not self.processqueue_status and  self.events is not None:
             while len(self.events)>0 and  self.events is not None:
                 
@@ -98,7 +99,7 @@ class Tracker:
                 try:
                     if not self.issend:
                         event = self.events.pop(0)
-                        self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
+                        await self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
                         event = None
                     else:
                         event = self.events.pop(0)
@@ -180,7 +181,7 @@ class Tracker:
                 
         return match_found , prob
 
-    def pred(self,frame,fn,track,config,det):
+    async def pred(self,frame,fn,track,config,det):
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -220,7 +221,7 @@ class Tracker:
             elif self.config['ocr_grcp']:
                 if not self.issend and frame is not None:
                     json_segment_frame = self.getSegmentFrame(track,frame,det)
-                    print("pass  here")
+                    
                     _, image_bytes = cv2.imencode('.jpg', json_segment_frame['segment_photo'])
                     future_response = self.stub.UploadImage.future(image_service_pb2.ImageUploadRequest(image=image_bytes.tostring()))       
                     response = future_response.result()
@@ -256,7 +257,7 @@ class Tracker:
                     for pred_i in result:
                         resul.append(pred_i[0])
                     msg_out = 'EMPTY'
-                    if len(resul)>0 and len(resul)<8:
+                    if len(resul)>0 and len(resul)<20:
                         msg_out = ''
                         for x in resul: 
                             msg_out += x
@@ -266,7 +267,7 @@ class Tracker:
                         self.issend, prob = self.matches_any_regex(msg_out,config["regex"])
                         print(prob,"[PROB]")
                         
-                        self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
+                        self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame,det)
                     
 
 
@@ -291,7 +292,7 @@ class Tracker:
             #self.queue.put(event)
             
             self.events.append(event)
-            self.processqueue()
+            asyncio.run(self.processqueue())
             if len(self.badPrediction)>5:
                 self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
                 self.badPrediction = self.badPrediction[:5]
@@ -434,24 +435,26 @@ class Tracker:
                 
             return datos
    
-    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
-        if  len(plate_chars)>3:
-            if issend:
-                self.plate_chars=  plate_chars
-                if getJson is None:
-                    print("HERE")
-                    getJson = self.prepareJson(track,frame,segment_frame)
-                    print("HERE2")
-                    getJson['plate_chars']= self.clearResult(self.plate_chars)
-                #stop
-            
-                self.sendAG(getJson)
+    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None, det=None):
+        try:
+            if  len(plate_chars)>3:
+                if issend:
+                    self.plate_chars=  plate_chars
+                    if getJson is None:                        
+                        getJson = self.prepareJson(track,frame,segment_frame)                    
+                        getJson['plate_chars']= self.clearResult(self.plate_chars)            
+                    self.sendAG(getJson)
+                else:
+                    
+                    eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson,det)
+                    self.badPrediction.append(eventToqueue)
+                    eventToqueue = None
+                    
             else:
-                eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson)
-                self.badPrediction.append(eventToqueue)
-                eventToqueue = None
-        
-                                 
+                print(plate_chars," plate_chars " , prob)                     
+        except Exception as p :
+            import traceback
+            traceback.print_exc()
         
     def generateFolders(self,full_photo,segment_photo):
         current_date = datetime.now()
@@ -507,7 +510,7 @@ class Tracker:
                     max_prob_event = event
                 elif event.prob == max_prob: 
                     if max_prob_event is None:
-                        max_prob_event = event
+                        max_prob_event = event                        
                     else:
                         if len(event.prediction)>len(max_prob_event.prediction):
                             max_prob_event = event

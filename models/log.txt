@@ -1,0 +1,36 @@
+INFO:openvino.tools.pot.app.run:Output log dir: ./
+INFO:openvino.tools.pot.app.run:Creating pipeline:
+ Algorithm: DefaultQuantization
+ Parameters:
+	preset                     : performance
+	stat_subset_size           : 300
+	target_device              : ANY
+	model_type                 : None
+	dump_intermediate_model    : False
+	inplace_statistics         : True
+	exec_log_dir               : ./
+ ===========================================================================
+INFO:openvino.tools.pot.app.run:Output log dir: ./
+INFO:openvino.tools.pot.app.run:Creating pipeline:
+ Algorithm: DefaultQuantization
+ Parameters:
+	preset                     : performance
+	stat_subset_size           : 300
+	target_device              : ANY
+	model_type                 : None
+	dump_intermediate_model    : False
+	inplace_statistics         : True
+	exec_log_dir               : ./
+ ===========================================================================
+INFO:openvino.tools.pot.app.run:Output log dir: ./
+INFO:openvino.tools.pot.app.run:Creating pipeline:
+ Algorithm: DefaultQuantization
+ Parameters:
+	preset                     : performance
+	stat_subset_size           : 300
+	target_device              : ANY
+	model_type                 : None
+	dump_intermediate_model    : False
+	inplace_statistics         : True
+	exec_log_dir               : ./
+ ===========================================================================

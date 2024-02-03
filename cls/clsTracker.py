@@ -251,7 +251,6 @@ class Tracker:
                         "width":segment_frame['width'],
                         "height":segment_frame['height']
                         })
-                    
                     resul = []
                     for pred_i in result:
                         resul.append(pred_i[0])
@@ -313,7 +312,7 @@ class Tracker:
         xcar1, ycar1, xcar2, ycar2 = track
         xmin, ymin, xmax,ymax, prob = det
        
-        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+        #segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
       
         
         xcar1 = xcar1 + self.padding
@@ -324,7 +323,7 @@ class Tracker:
         width_rectangle = xcar2 - xcar1
         height_rectangle = ycar2 - ycar1
         
-        segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+        #segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
     
         #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax),(0, 255, 255), 2)
         # Calculate the center of the square
@@ -346,7 +345,7 @@ class Tracker:
         
         segment_photo = frame[ymin_new:ymax_new,xmin_new:xmax_new]
         
-        cv2.imwrite("/opt/alice-media/ocr/after{}.jpg".format(time.time()), segment_photo)
+        #cv2.imwrite("/opt/alice-media/ocr/after{}.jpg".format(time.time()), segment_photo)
         
         
         x = xmin_new

@@ -238,7 +238,7 @@ def current_milli_time():
 	return int(round(time.time() * 1000))
 	
 def platePredict(MYNET, classNames, detection_img, USE_GPU=False):
-	THR1 = 0.25
+	THR1 = 0.5
 	#
 	dets = []
 	#coord_rs = []
@@ -260,11 +260,23 @@ def platePredict(MYNET, classNames, detection_img, USE_GPU=False):
 		crop = False
 		#---
 		#detection_img = cv2.resize(detection_img, (inWidth, inHeight), interpolation=cv2.INTER_CUBIC)
+	
 		blob = cv2.dnn.blobFromImage(detection_img, inScaleFactor, (W, H), swapRB, crop)
+		#blob = cv2.dnn.blobFromImage(image, 1/255.0, (416, 416), swapRB=True, crop=False)
 		#start_time = time.time()*1000.0
-		MYNET.setInput(blob,"data")
-		detections = MYNET.forward("detection_out")
+		#MYNET.setInput(blob,"data")
+		MYNET.setInput(blob)
+		#detections = MYNET.forward("detection_out")
+		output_layers = MYNET.getUnconnectedOutLayersNames()
+		# Run forward pass to get predictions
+		detections = MYNET.forward(output_layers)
+
+		
+	
+
+
 		#print(classNames)
+		#print(detections)
 	else:
 		# Image size
 		img_size = (darknet.network_width(MYNET), darknet.network_height(MYNET))
@@ -311,58 +323,106 @@ def platePredict(MYNET, classNames, detection_img, USE_GPU=False):
 	predict_plate = []
 	confidence_plate =[]
 	# FILTER DETECTIONS
-	for idx in range(detections.shape[0]):
-		confidence = np.amax(detections[idx, prob_index::])
-		if confidence > thr:
-			class_id = np.argmax(detections[idx, prob_index::])
-			nameTag = classNames[class_id]
-			full_result = full_result + nameTag
-			predict_plate.append(classNames[class_id])
-			confidence_plate.append(confidence)
-			# For drawing
-			rel_x = (detections[idx, 0])
-			rel_y = (detections[idx, 1])
-			rel_width = (detections[idx, 2])
-			rel_height = (detections[idx, 3])
-			# CALC COORDS
-			img_cols = detection_img.shape[1]
-			img_rows = detection_img.shape[0]
-			xLeftBottom = int((rel_x - rel_width/2) * img_cols)
-			yLeftBottom = int((rel_y - rel_height/2) * img_rows)
-			#xRightTop   = int((rel_x + rel_width/2) * img_cols)
-			#yRightTop   = int((rel_y + rel_height/2) * img_rows)
-			rectWidth  = int(rel_width*img_cols)
-			rectHeight = int(rel_height*img_rows)
-			xRightTop  = xLeftBottom + rectWidth
-			yRightTop  = yLeftBottom + rectHeight
-			# attach results
-			#dets.append((nameTag, confidence, (xLeftBottom, yLeftBottom, rectWidth, rectHeight)))
-			dets.append((nameTag, confidence, (rel_x, rel_y, rel_width, rel_height)))
-			
-			cv2.rectangle(detection_img, (xLeftBottom, yLeftBottom), (xRightTop, yRightTop),
-							(0, 255, 0))
-			
-			if classNames[class_id] in classNames:
-				label = classNames[class_id] + ": " + str(round(confidence, 2))
-				labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-				yLeftBottom = max(yLeftBottom, labelSize[1])
-				cv2.rectangle(detection_img, (xLeftBottom, yLeftBottom - labelSize[1]),
-										(xLeftBottom + labelSize[0], yLeftBottom + baseLine),
-										(255, 255, 255), cv2.FILLED)
-				cv2.putText(detection_img, label, (xLeftBottom, yLeftBottom),
-							cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
-				cv2.putText(detection_img, classNames[class_id], (xLeftBottom, yLeftBottom),
-							cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+	parts = []
+	if (not USE_GPU):
+		for out in detections:
+			for detection in out:
+				#print(detections,"*****************************************")
+				scores = detection[5:]
+				class_id = np.argmax(scores)
+				confidence = scores[class_id]#
+
+				if confidence > thr:
+					#nameTag = classNames[class_id]
+					nameTag = classNames[class_id]
+					full_result = full_result + nameTag
+					predict_plate.append(classNames[class_id])
+					confidence_plate.append(confidence)
+					# Scale the bounding box back to the original image size
+					height, width = detection_img.shape[:2]
+					center_x = int(detection[0] * width)
+					center_y = int(detection[1] * height)
+					w = int(detection[2] * width)
+					h = int(detection[3] * height)
+
+					# Calculate top-left corner of the bounding box
+					x = int(center_x - w / 2)
+					y = int(center_y - h / 2)
+					xRightTop  = x + w
+					yRightTop  = y + h
+					# Draw bounding box and label on the image
+					#cv2.rectangle(detection_img, (x, y), (x + w, y + h), color, 2)
+					#print(nameTag,confidence)
+					dets.append((nameTag, confidence, (x, y, w, h)))
+					#print(len(dets),"    ----------------------------------------------")
+					cv2.rectangle(detection_img, (x, y), (xRightTop, yRightTop),(0, 255, 0))
+					if classNames[class_id] in classNames:
+						label = classNames[class_id] + ": " + str(round(confidence, 2))
+						labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+						yLeftBottom = max(y, labelSize[1])
+						cv2.rectangle(detection_img, (x, yLeftBottom - labelSize[1]),
+												(x + labelSize[0], yLeftBottom + baseLine),
+												(255, 255, 255), cv2.FILLED)
+						cv2.putText(detection_img, label, (x, yLeftBottom),
+									cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+						cv2.putText(detection_img, classNames[class_id], (x, yLeftBottom),
+									cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+			#print(full_result,"*******************")
+	else:
+		for idx in range(detections.shape[0]):
+			confidence = np.amax(detections[idx, prob_index::])
+			if confidence > thr:
+				class_id = np.argmax(detections[idx, prob_index::])
+				nameTag = classNames[class_id]
+				full_result = full_result + nameTag
+				
+				predict_plate.append(classNames[class_id])
+				confidence_plate.append(confidence)
+				# For drawing
+				rel_x = (detections[idx, 0])
+				rel_y = (detections[idx, 1])
+				rel_width = (detections[idx, 2])
+				rel_height = (detections[idx, 3])
+				# CALC COORDS
+				img_cols = detection_img.shape[1]
+				img_rows = detection_img.shape[0]
+				xLeftBottom = int((rel_x - rel_width/2) * img_cols)
+				yLeftBottom = int((rel_y - rel_height/2) * img_rows)
+				#xRightTop   = int((rel_x + rel_width/2) * img_cols)
+				#yRightTop   = int((rel_y + rel_height/2) * img_rows)
+				rectWidth  = int(rel_width*img_cols)
+				rectHeight = int(rel_height*img_rows)
+				xRightTop  = xLeftBottom + rectWidth
+				yRightTop  = yLeftBottom + rectHeight
+				# attach results
+				#dets.append((nameTag, confidence, (xLeftBottom, yLeftBottom, rectWidth, rectHeight)))
+				dets.append((nameTag, confidence, (rel_x, rel_y, rel_width, rel_height)))
+				
+				cv2.rectangle(detection_img, (xLeftBottom, yLeftBottom), (xRightTop, yRightTop),
+								(0, 255, 0))
+				
+				if classNames[class_id] in classNames:
+					label = classNames[class_id] + ": " + str(round(confidence, 2))
+					labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+					yLeftBottom = max(yLeftBottom, labelSize[1])
+					cv2.rectangle(detection_img, (xLeftBottom, yLeftBottom - labelSize[1]),
+											(xLeftBottom + labelSize[0], yLeftBottom + baseLine),
+											(255, 255, 255), cv2.FILLED)
+					cv2.putText(detection_img, label, (xLeftBottom, yLeftBottom),
+								cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+					cv2.putText(detection_img, classNames[class_id], (xLeftBottom, yLeftBottom),
+								cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
 				#print (label)
 	### SAVE AN EVIDENCE IMAGE
-	'''
+	return dets
+"""
 	parts = []
 	dirName = './media/'
 	parts.append('evid_')
 	parts.append(str(current_milli_time()))
 	parts.append('_')
 	parts.append(str(full_result))
-	parts.append('-img.png')
+	parts.append('-img_detection.png')
 	imgName = ''.join(parts)
 	filepath = dirName + imgName
 	print(filepath)
@@ -370,9 +430,57 @@ def platePredict(MYNET, classNames, detection_img, USE_GPU=False):
 	if not ret:
 		filepath = "IMWRITE ERROR"
 	print("stored ", filepath)
-	'''
+	
 	# RESULTS
 	return dets
+
+#	return dets
+"""
+"""
+### APPEND THE RESULTS
+print("letters ", len(result))
+if(len(predict_plate)>=0):
+	if not result:
+		result = "abc123"
+	if not confidence_plate:
+		confidence_mean = 0.0
+	else:
+		confidence_mean = float(np.mean(confidence_plate))
+	
+	dets.append((nameTag, confidence_mean, (coord.x, coord.y, coord.w, coord.h)))
+	confidence_rs.append(confidence_mean)
+	predict_rs.append(result)
+	coord_rs.append(coord)
+#---		
+logger.info(result)
+logger.info(predict_plate)
+logger.info(confidence_plate)
+logger.info(coord)
+# RESULTS	
+return predict_rs,confidence_rs,coord_rs
+"""
+def filter_bounding_boxes_inside_plate(detections, target_label='PLATE'):
+    plate_boxes = [box for box in detections if box[0] == target_label]
+    
+    if not plate_boxes:
+        return []  # No 'PLATE' boxes found, return empty list
+    
+    # Sort 'PLATE' boxes by area in descending order
+    plate_boxes.sort(key=lambda box: (box[2][2] - box[2][0]) * (box[2][3] - box[2][1]), reverse=True)
+    
+    plate_box = plate_boxes[0][2]  # Choose the box with the largest area
+    
+    filtered_boxes = [box for box in detections if box[0] != target_label and is_inside(box[2], plate_box)]
+    return filtered_boxes
+
+def is_inside(box, plate_box):
+    x, y, w, h = box
+    plate_x, plate_y, plate_w, plate_h = plate_box
+    
+    return plate_x <= x <= x + w <= plate_x + plate_w and plate_y <= y <= y + h <= plate_y + plate_h
+
+# Example usage:
+
 """
 ### APPEND THE RESULTS
 print("letters ", len(result))
@@ -405,7 +513,7 @@ def clamp(n, minn, maxn):
 	else:
 		return n
 
-def YoloBox2RelatiBox(yoloBox):
+def YoloBox2RelatiBox1(yoloBox):
 	# EXTRACT YOLO VALUES WHERE X & Y ARE THE DETECTION CENTER
 	rel_x 		= yoloBox[0]
 	rel_y 		= yoloBox[1]
@@ -417,6 +525,17 @@ def YoloBox2RelatiBox(yoloBox):
 	# RETURN
 	return (rel_x, rel_y, rel_wid, rel_hei)
 
+def YoloBox2RelatiBox(yoloBox):
+    # EXTRACT YOLO VALUES WHERE X & Y ARE THE DETECTION CENTER
+    rel_x = yoloBox[0]
+    rel_y = yoloBox[1]
+    rel_wid = yoloBox[2]
+    rel_hei = yoloBox[3]
+    # CONVERT X & Y TO BECOME THE VERTICES OF THE DETECTION BOX
+    rel_x = rel_x - rel_wid / 2
+    rel_y = rel_y - rel_hei / 2
+    # RETURN
+    return [int(rel_x), int(rel_y), int(rel_wid), int(rel_hei)]
 def RelatiBox2ConcreBox(rel_box, concre_wid, concre_hei):
 	# CALC CONCRETE BOX'S ORIGIN, WIDTH, HEIGHT
 	concre_x 	= int(rel_box[0] * concre_wid)
@@ -432,57 +551,76 @@ def rescaleDetections(detections, x_ratio, y_ratio):
 		return None
 
 	return detections
-
-def findRelatMinMaxBounds(detections):
-	labels = np.array([detection[0] for detection in detections])
-	if DEBUG_HERE: print("LABELS: ", labels)
-	bboxes = [detection[2] for detection in detections]
-	if(len(bboxes)<1):
-		return None
 	
-	# CALC MINMAX BOUNDS
-	#if DEBUG_HERE: print('bboxes: ', bboxes)
-	min_x =  99
-	min_y =  99
-	max_x = -99
-	max_y = -99
-	for bounds in bboxes:
-		# GET RELATIVE BOX
-		relBox = YoloBox2RelatiBox(bounds)
-		
-		try:
-			rel_bboxes = np.clip(relBox, 0, 1)
-		except Exception as w:
-			print(w)
-		
-		v1_x = relBox[0]
-		v1_y = relBox[1]
-		v2_x = v1_x + relBox[2]
-		v2_y = v1_y + relBox[3]
-		# CHECK THAT THE VERTICES ARE WITHIN A SAFE RANGE
-		v1_x = clamp(v1_x, 0, 1)
-		v1_y = clamp(v1_y, 0, 1)
-		v2_x = clamp(v2_x, 0, 1)
-		v2_y = clamp(v2_y, 0, 1)
-		# UPDATE THE LOWER VERTICES
-		min_x = min(min_x, v1_x)
-		min_y = min(min_y, v1_y)
-		# UPDATE THE UPPER VERTICES
-		max_x = max(max_x, v2_x)
-		max_y = max(max_y, v2_y)
-		# DEBUG
-		
-		if DEBUG_HERE: print(round(v1_x,4),' ',round(v1_y,4),' ',round(v2_x,4),' ',round(v2_y,4))
-	   
-	# CHECK THAT THE VERTICES ARE WITHIN A SAFE RANGE
-	min_x = clamp(min_x, 0, 1)
-	min_y = clamp(min_y, 0, 1)
-	max_x = clamp(max_x, 0, 1)
-	max_y = clamp(max_y, 0, 1)
-	#
-	dets_bounds = [min_x, min_y, max_x, max_y]
-	if DEBUG_HERE: print('dets_bounds: ', dets_bounds)
-	return dets_bounds
+def findPlate(detections):
+	found = any(det[0] == 'PLATE' for det in detections)
+	return found
+def get_best_detection(detections, target_label):
+    # Filter detections for the target label
+    filtered_detections = [det for det in detections if det[0] == target_label]
+
+    if not filtered_detections:
+        # No detections for the target label
+        return None
+
+    # Find the detection with the highest confidence
+    best_detection = max(filtered_detections, key=lambda x: x[1])
+
+    return [best_detection]
+def removePlate(detections):
+	dets = [det for det in detections if det[0]!='PLATE']
+	return dets
+def findRelatMinMaxBounds(result_vec, det_img_wid, det_img_hei):
+    labels = np.array([detection[0] for detection in result_vec])
+    if DEBUG_HERE: print("LABELS: ", labels)
+    bboxes = [detection[2] for detection in result_vec]
+    #print(bboxes,"bboxes      *       * * * * * ** * * * * *")
+    if(len(bboxes)<1):
+       return None
+
+    # CALC MINMAX BOUNDS
+    min_x =  99
+    min_y =  99
+    max_x = -99
+    max_y = -99
+    
+    # FIND RELATIVE BOUNDING BOX
+    for resul_i in bboxes:
+        # GET VERTICES IN RELATIVE VALUES
+       
+        v1_x1 = resul_i[0]
+        v1_y1 = resul_i[1]
+        v2_x1 = resul_i[2]
+        v2_y1 = resul_i[3]
+        print(v1_x1,v1_y1,v2_x1,v2_y1)
+        v1_x = float(resul_i[0]) / det_img_wid
+        v1_y = float(resul_i[1]) / det_img_hei
+        v2_x = float(resul_i[0] + resul_i[2]) / det_img_wid
+        v2_y = float(resul_i[1] + resul_i[3]) / det_img_hei
+        
+        # UPDATE THE LOWER VERTICES
+        min_x = min(min_x, v1_x)
+        min_y = min(min_y, v1_y)
+
+        # UPDATE THE UPPER VERTICES
+        max_x = max(max_x, v2_x)
+        max_y = max(max_y, v2_y)
+
+        # DEBUG
+        if DEBUG_HERE: print(round(v1_x, 4), ' ', round(v1_y, 4), ' ', round(v2_x, 4), ' ', round(v2_y, 4))
+
+    # CHECK THAT THE VERTICES ARE WITHIN A SAFE RANGE
+    min_x = max(min_x, 0)
+    min_y = max(min_y, 0)
+    max_x = min(max_x, 1)
+    max_y = min(max_y, 1)
+
+    rel_bounds = [min_x, min_y, max_x, max_y]
+
+    if DEBUG_HERE: print('rel_bounds: ', rel_bounds)
+    return rel_bounds
+
+
 
 def resizeBounds(bounds, bound_size, parent_size):
 	x_ratio = parent_size[1]/bound_size[1]
@@ -519,6 +657,7 @@ def addBorder(ratio, bound, maxBorder):
 	# GET INITIAL PARAMETERS
 	width = bound[2] - bound[0]
 	height = bound[3] - bound[1]
+	#print(width,height,"width height ****************************")
 	aspect_ratio = width / height
 	if DEBUG_HERE: print("aspect ",aspect_ratio)
 	# INITIAL X_RATIO AND Y_RATIO
@@ -549,6 +688,7 @@ def addBorder(ratio, bound, maxBorder):
 	if(x_bot >= maxBorder[1]): x_bot = maxBorder[1] - 1
 	if(y_bot >= maxBorder[0]): y_bot = maxBorder[0] - 1
 	#
+	#bound_ext = [x_top,y_top,x_bot,y_bot]
 	bound_ext = [x_top,y_top,x_bot,y_bot]
 	if DEBUG_HERE: print("bound_out ",bound_ext)
 	return bound_ext
@@ -670,83 +810,58 @@ def getFirstChar_Index(dets):
 	idx_res = SUMS.index(min(SUMS))
 	print('ELEMS: ', [det_i[0] for det_i in dets], ' | idx_res: ', idx_res)
 	return idx_res
-
-def removeOverlap(dets, overlap=0.5):
-	# CONTAINER CONTENT: dets (nameTag, confidence, (x, y, width, height))
-	# CHECK LENGTH
-	N_BOXES = len(dets)
-	if N_BOXES==0:
-		print('EMPTY DETS! Nothing to order here.')
-		return None
-	# EMPTY CONTAINER FOR THE OUTPUT
-	RESULT = []
-	# START BY ATTACHING THE FIRST LETTER
-	RESULT.append(dets.pop(0))
-	# GUARD IN CASE THE CHAR ARRANGEMENT GETS TOO BIG DUE TO A BUG
-	while len(dets)>0 and len(RESULT)<30:
-		RESULT_TAIL = RESULT[-1]
-		INPUT_HEAD  = dets[0]
-		# 
-		if rectOverlap(RESULT_TAIL[2], INPUT_HEAD[2], overlap):
-			if RESULT_TAIL[1] < INPUT_HEAD[1]:
-				# IF THE INPUT HEAD HAS A GREATER CONFIDENCE
-				# USE IT TO REPLACE THE LAST RESULT
-				if True:
-					print('RESULT_TAIL tag: ', RESULT_TAIL[0], end=' / ')
-					print('prob: ', RESULT_TAIL[1], end=' / ')
-					print('bbox: ', RESULT_TAIL[2])
-					print('INPUT_HEAD tag: ', INPUT_HEAD[0], end=' / ')
-					print('prob: ', INPUT_HEAD[1], end=' / ')
-					print('bbox: ', INPUT_HEAD[2])
-				RESULT[-1] = dets.pop(0)
-			else:
-				# IF THE INPUT HEAD HAS A LOWER CONFIDENCE,
-				# THEN JUST DELETE IT
-				toRemove = dets.pop(0)
-				print('toRemove: ', toRemove)
-		else:
-			# IF THE 2 DETS DON'T OVERLAP, ATTACH NEXT LETTER
-			RESULT.append(dets.pop(0))
-		'''
-		# CONDITION IF IDX = -1
-		if IDX_next==-1:
-			# take good decision
-			print(':::ERROR: INDEX=-1')
-			break
-		# ATTACH NEXT LETTER
-		RESULT.append(dets.pop(IDX_next))
-		'''
-	#
-	return RESULT
+def removeOverlap(dets, overlap=0.3):
+    # CONTAINER CONTENT: dets (nameTag, confidence, (x, y, width, height))
+    # CHECK LENGTH
+    N_BOXES = len(dets)
+    if N_BOXES == 0:
+        print('EMPTY DETS! Nothing to order here.')
+        return None
+    
+    # EMPTY CONTAINER FOR THE OUTPUT
+    RESULT = []
+    
+    for det in dets:
+        # Flag to check if the detection is overlapped by any existing detection in RESULT
+        overlapped = False
+        
+        for result_det in RESULT:
+            # Check for overlap between the current detection and existing detections in RESULT
+            if rectOverlap(det[2], result_det[2], overlap):
+                # If there is an overlap, keep the detection with the higher confidence
+                if det[1] > result_det[1]:
+                    RESULT.remove(result_det)
+                else:
+                    overlapped = True
+                    break
+        
+        # If the detection is not overlapped, add it to the result
+        if not overlapped:
+            RESULT.append(det)
+    
+    return RESULT
 
 def rectOverlap(rect1, rect2, overlap):
-	# CALCULATE THE INTERSECTION AREA vs THE TOTAL AREA
-	i_area = interArea(rect1, rect2)
-	a1 = rect1[2] * rect1[3]
-	a2 = rect2[2] * rect2[3]
-	no_i_area = a1 + a2 - i_area
-	quotient = i_area / no_i_area
-	resul = True if quotient > overlap else False
-	if False:
-		print(' i_area: ', i_area, end=' , ')
-		print(' a1: ', a1, end=' , ')
-		print(' a2: ', a2, end=' , ')
-		print(' no_i_area: ', no_i_area, end=' , ')
-		print(' quotient: ', quotient, end=' , ')
-		print(' resul: ', resul)
-	return resul
+    # CALCULATE THE INTERSECTION AREA vs THE TOTAL AREA
+    i_area = interArea(rect1, rect2)
+    a1 = rect1[2] * rect1[3]
+    a2 = rect2[2] * rect2[3]
+    no_i_area = a1 + a2 - i_area
+    quotient = i_area / no_i_area
+    resul = True if quotient > overlap else False
+    return resul
 
 def interArea(a, b):
-	A_right = a[0] + a[2]
-	A_botto = a[1] + a[3]
-	B_right = b[0] + b[2]
-	B_botto = b[1] + b[3]
-	dx = min(A_right, B_right) - max(a[0], b[0])
-	dy = min(A_botto, B_botto) - max(a[1], b[1])
-	if (dx>=0) and (dy>=0):
-		return dx*dy
-	else:
-		return 0
+    A_right = a[0] + a[2]
+    A_botto = a[1] + a[3]
+    B_right = b[0] + b[2]
+    B_botto = b[1] + b[3]
+    dx = min(A_right, B_right) - max(a[0], b[0])
+    dy = min(A_botto, B_botto) - max(a[1], b[1])
+    if (dx >= 0) and (dy >= 0):
+        return dx * dy
+    else:
+        return 0
 
 def drawCoord(img, coord, color=(0,200,200), thickness=2):
 	pass
@@ -771,7 +886,7 @@ def drawPredictions(image, detectionsBoxes, x_ratio=1.0, y_ratio=1.0):
 
 		leftTopCorner = (v1_x, v1_y)
 		rightBottomCorner = (v2_x, v2_y)
-		cv2.rectangle(image, leftTopCorner, rightBottomCorner, (200,random.randint(0,255),20), 1)
+		#cv2.rectangle(image, leftTopCorner, rightBottomCorner, (200,random.randint(0,255),20), 1)
 	#cv2.namedWindow("DRAWINGS",0)
 	#cv2.imshow("DRAWINGS",image)
 	#cv2.waitKey(1)

@@ -199,7 +199,9 @@ if not USE_GPU:	# cv2.dnn in CPU
 	#cfg = './lib/ocr_tiny2.cfg'
 	#namew = weights.split('/')
 	classNames = read_lines_class(namePath)
-	net = cv2.dnn.readNetFromDarknet(configPath, weightPath)
+	#net = cv2.dnn.readNetFromDarknet(configPath, weightPath)
+	#print(weightPath,"weightPath *************************************************************************")
+	net = cv2.dnn.readNet(weightPath, configPath)
 	net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
 	#net.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL_FP16)
 	#net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
@@ -269,6 +271,7 @@ def doubleDetectionlocal(img,json_msg, net, classNames, USE_GPU=False):
 				# Darkenet detection
 				# detections = detector.performDetectImg(img)
 				#print(USE_GPU,"USE_GPU")
+				
 				detections = platePredict(net, classNames, resz_roi_img, USE_GPU)
 				
 				#print("not cordumped")

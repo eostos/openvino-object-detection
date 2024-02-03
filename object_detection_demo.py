@@ -249,6 +249,7 @@ def main():
         else:
             ocr = OCR(country)
             prediction=ocr.prediction
+            
 
         if ocr_grcp:
             print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
@@ -417,7 +418,7 @@ def main():
                     cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                     cv2.imshow('Detection Results', frame)
                     
-                    key = cv2.waitKey(1)
+                    key = cv2.waitKey(0)
                 continue
                 
                     #ESC_KEY = 27

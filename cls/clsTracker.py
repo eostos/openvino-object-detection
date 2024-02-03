@@ -252,7 +252,6 @@ class Tracker:
                         "width":segment_frame['width'],
                         "height":segment_frame['height']
                         })
-                    
                     resul = []
                     for pred_i in result:
                         resul.append(pred_i[0])
@@ -347,9 +346,7 @@ class Tracker:
             y = ycar1
             w = xcar2 - xcar1
             h = ycar2 - ycar1
-            
-            
-        
+
             
             return {
                 "segment_photo":segment_photo,

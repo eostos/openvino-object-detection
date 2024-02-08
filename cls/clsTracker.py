@@ -437,7 +437,7 @@ class Tracker:
    
     def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None, det=None):
         try:
-            if  len(plate_chars)>3:
+            if  len(plate_chars)>3 and len(plate_chars)<10:
                 if issend:
                     self.plate_chars=  plate_chars
                     if getJson is None:                        

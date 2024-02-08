@@ -45,34 +45,32 @@ class Device:
     def set_trackers(self, tracks, frame, fn,detections_,padding,stub=None):
         self.asociaciones = []
         height_frame, width_frame, _ = frame.shape
-        
-        if len(tracks)>0 and len(detections_)>0:
-            for id_sort, *box_sort in tracks:
+        for id_sort, *box_sort in tracks:
+            if self.is_within_roi(box_sort,self.config['alter_config']['roi_limits'],width_frame,height_frame,padding):
                 for box_detec in detections_:
                     iou = self.calcular_iou(box_sort, box_detec[:-1])
                     if iou >= self.umbral_iou and self.is_within_roi(box_sort,self.config['alter_config']['roi_limits'],width_frame,height_frame,padding):
                         if(self.tracks.get(id_sort, None)):
-                            pass
-                            #print("Update Tracker",id_sort)
                             self.tracks[id_sort].update(box_sort,frame,id_sort,box_detec[-1],box_detec)
+                            pass
                         else:
-                            
-                            print("New Tracker: ",id_sort)
-                            self.tracks[id_sort]=True
+                            self.tracks[id_sort]=False
                             self.tracks[id_sort]= Tracker(self.config,box_sort,frame, fn,id_sort,box_detec[-1],padding,box_detec,stub,self.connect_redis,self.send_video)
-        
-       
+                            pass
+                        
         for key in list(self.tracks.keys()):
-            diff = self.tracks[key].checkIslive()
-            #print("Tracker active ",len(self.tracks))
-            
-            if diff > 2:
+            if self.tracks[key]:
+                diff = self.tracks[key].checkIslive()
+                #print("Tracker active ",len(self.tracks))
                 
-                #send  the  better prediction  before  dead  tracker
-                self.tracks[key].destroy()
-                self.tracks[key]=None
-                self.tracks.pop(key)
-                print("Delete Tracker  ",key)
+                if diff > 2:
+                    
+                    #send  the  better prediction  before  dead  tracker
+                    self.tracks[key].destroy()
+                    self.tracks[key]=None
+                    self.tracks.pop(key)
+                    print("Delete Tracker  ",key)
+        
 
     def calcular_iou(self,boxA, boxB):
         # Determinar las coordenadas (x, y) de la intersección
@@ -116,3 +114,9 @@ class Device:
         # Check if the detection is within the ROI
         return xmin_roi <= x1 <= xmax_roi and ymin_roi <= y1 <= ymax_roi and \
             xmin_roi <= x2 <= xmax_roi and ymin_roi <= y2 <= ymax_roi
+
+
+
+
+
+

@@ -14,6 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+import asyncio
 from memory_profiler import profile
 from concurrent.futures import ThreadPoolExecutor
 import logging as log
@@ -36,7 +37,8 @@ from cls.clsDevice import Device
 import traceback
 import os
 import threading
-
+from cls.queue import Queue
+from cls.ModelEvent import Event
 
 def display_top(snapshot, key_type='lineno', limit=10):
     top_stats = snapshot.statistics(key_type)
@@ -75,6 +77,7 @@ from httpOCRpy.server import OCR
 import image_service_pb2
 import image_service_pb2_grpc
 import grpc
+import psutil
 
 
 
@@ -84,6 +87,10 @@ log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=
 # Create a tracker with max_age = 5, min_hits = 3 and iou_threshold = 0.2``
 # Default values are max_age = 3, min_hits = 1 and iou_threshold = 0.3
 tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
+
+def get_memory_usage():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / (1024 * 1024)  # En megabytes
 
 def is_running_in_docker():
     # Docker crea un archivo .dockerenv en la raíz del sistema de archivos del contenedor.
@@ -205,9 +212,81 @@ def print_raw_results(detections, labels, frame_id):
         det_label = labels[class_id] if labels and len(labels) >= class_id else '#{}'.format(class_id)
         log.debug('{:^9} | {:10f} | {:4} | {:4} | {:4} | {:4} '
                   .format(det_label, detection.score, xmin, ymin, xmax, ymax))
+def set_trackers_async(device, tracks, frame_to_save, prediction, detections_, padding, stub):
+    device.set_trackers(tracks, frame_to_save, prediction, detections_, padding, stub)
+
+
+queue = Queue()
+if is_running_in_docker():
+    ConfParams = util.getConfigs('/opt/alice-lpr-cpu/config.json',True)
+else:
+    ConfParams = util.getConfigs('./config.json')
+
+if ConfParams:
+    print(ConfParams)
+    # Parse the JSON string into a dictionary
+try:
+    conf_dict = json.loads(ConfParams)
+    device = Device(conf_dict,util.send_video)
+    vid_path = conf_dict['vid_path']
+    model_path = conf_dict['model']#it replaced the args.model
+    architecture_type = conf_dict['architecture_type']#it replaced the args.model
+    debug = conf_dict['debug']
+    ip_redis = conf_dict['ip_redis']
+    port_redis = conf_dict['port_redis']
+    device_id = conf_dict['device_id']
+    country = conf_dict['country']
+    devicearg  = conf_dict['device']
+    ocr_grcp_ip = conf_dict['ocr_grcp_ip']
+    ocr_grcp_port = conf_dict['ocr_grcp_port']
+    ocr_grcp        = conf_dict['ocr_grcp']
+    ocr_http =  conf_dict['ocr_http']
+except json.JSONDecodeError:
+    print("Error: Failed to parse the configuration parameters.")
+except KeyError:
+    print("Error: 'vid_path' not found in the configuration parameters.")
+connect_redis= redis.Redis(host=ip_redis, port=port_redis)
+
+
 
 @profile
-def main():
+def ocr():
+    if  ocr_grcp or ocr_http:
+        prediction = None
+    else:
+        ocr = OCR(country)
+        prediction=ocr.prediction
+        pass
+    while True:
+        
+        if queue.is_empty():
+            time.sleep(0.1)
+        else:
+            if service_ocr and not service_ocr.is_alive():
+                raise RuntimeError("OCR ERROR")
+                
+            eventqueue = queue.dequeue()
+            with ThreadPoolExecutor() as executor:
+                executor.submit(set_trackers_async,
+                                device,
+                                eventqueue.get_tracks(),
+                                eventqueue.get_frame(),
+                                prediction,
+                                eventqueue.get_detections_(),
+                                eventqueue.get_padding(),
+                                eventqueue.get_stub())
+            
+        
+        
+ 
+ 
+ 
+service_ocr = threading.Thread(target=ocr)
+service_ocr.daemon = True  # Esto hace que el hilo se cierre cuando se cierra el programa principal
+service_ocr.start()
+   
+@profile
+def detector():
     try:
         ####################
         stub=None
@@ -215,42 +294,8 @@ def main():
         # Open json file
         # TODO: add guards to getConfig
         # TODO: check if there's a repeated ID and other conflicts. Print the error and exit.
-        if is_running_in_docker():
-            ConfParams = util.getConfigs('/opt/alice-lpr-cpu/config.json',True)
-        else:
-            ConfParams = util.getConfigs('./config.json')
         
-        if ConfParams:
-            print(ConfParams)
-            # Parse the JSON string into a dictionary
-        try:
-            conf_dict = json.loads(ConfParams)
-            device = Device(conf_dict,util.send_video)
-            vid_path = conf_dict['vid_path']
-            model_path = conf_dict['model']#it replaced the args.model
-            architecture_type = conf_dict['architecture_type']#it replaced the args.model
-            debug = conf_dict['debug']
-            ip_redis = conf_dict['ip_redis']
-            port_redis = conf_dict['port_redis']
-            device_id = conf_dict['device_id']
-            country = conf_dict['country']
-            devicearg  = conf_dict['device']
-            ocr_grcp_ip = conf_dict['ocr_grcp_ip']
-            ocr_grcp_port = conf_dict['ocr_grcp_port']
-            ocr_grcp        = conf_dict['ocr_grcp']
-            ocr_http =  conf_dict['ocr_http']
-        except json.JSONDecodeError:
-            print("Error: Failed to parse the configuration parameters.")
-        except KeyError:
-            print("Error: 'vid_path' not found in the configuration parameters.")
-        connect_redis= redis.Redis(host=ip_redis, port=port_redis)
-        if  ocr_grcp or ocr_http:
-            prediction = None
-        else:
-            ocr = OCR(country)
-            prediction=ocr.prediction
-            
-
+        
         if ocr_grcp:
             print('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
             channel = grpc.insecure_channel('{}:{}'.format(ocr_grcp_ip,ocr_grcp_port))
@@ -389,13 +434,17 @@ def main():
                     print("error ",e)
                     traceback.print_exc()
                 tracks = tracker.get_tracks(2)
-                with ThreadPoolExecutor() as executor:
-                    executor.submit(device.set_trackers, tracks, sendframe, prediction, detections_, padding, stub)
+                if len(tracks):
+                    ev = Event(sendframe,tracks,None,detections_,padding,stub )
+                    queue.enqueue(ev)
+                #with ThreadPoolExecutor() as executor:
                     
-                #threading.Thread(target=device.set_trackers, args=(tracks,sendframe,prediction,detections_,padding,stub)).start()
-                #device.set_trackers()
-                
-                
+                #    executor.submit(set_trackers_async, device, tracks, sendframe, prediction, detections_, padding, stub)
+                    
+                    #threading.Thread(target=device.set_trackers, args=(tracks,sendframe,prediction,detections_,padding,stub)).start()
+                    #device.set_trackers()
+                    
+                    
                 render_metrics.update(rendering_start_time)
                 metrics.update(start_time, frame)
 
@@ -411,14 +460,13 @@ def main():
                 # Dibuja el rectángulo en la imagen
                 #sendFrame = frame.copy()
                 cv2.rectangle(frame, (rxmin, rymin), (rxmax, rymax), (0, 255, 0), 2)
-
                 util.send_video(frame,connect_redis,device_id)
 
                 if debug:
                     cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                     cv2.imshow('Detection Results', frame)
                     
-                    key = cv2.waitKey(0)
+                    key = cv2.waitKey(1)
                 continue
                 
                     #ESC_KEY = 27
@@ -512,4 +560,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main() or 0)
+    sys.exit(detector() or 0)

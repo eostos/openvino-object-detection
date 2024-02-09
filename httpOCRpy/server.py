@@ -192,7 +192,7 @@ class OCR:
 						# PERFORM THE SECOND DETECTION
 						detections_pre = utils.platePredict(net, classNames, resz_plate_lv2, USE_GPU)
 						#print(detections,"seconds detections ..............................................")
-						filtered_inside_plate_boxes = utils.filter_bounding_boxes_inside_plate(detections_pre,"PLATE")
+						filtered_inside_plate_boxes = utils.filter_bounding_boxes_inside_plate(detections_pre,net_size_X,"PLATE")
 						#print(filtered_inside_plate_boxes,"After cleaning ..............................................")
 						detections = utils.removePlate(filtered_inside_plate_boxes)
 						#print(detections,"************************************************************************************************************  2 ")
@@ -281,12 +281,13 @@ class OCR:
 		# ORDER
 		#print(detections,"removing *******************************************************")
 		if len(detections)>0:
+			detections = removeOverlap(detections, overlap=0.5)
 			dets_order = orderChars(detections,self.country)
-			#print(dets_order,"dets_order *************************************************")
+			print(dets_order,"dets_order *************************************************")
 
 			# REMOVE OVERLAPPED AND LOW QUALITY PLATES
 			#print("before overlaping", dets_order)
-			dets_order = removeOverlap(dets_order, overlap=0.5)
+			#dets_order = removeOverlap(dets_order, overlap=0.5)
 		else:
 			dets_order=[]
 		# RET

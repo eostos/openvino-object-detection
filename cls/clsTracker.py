@@ -15,7 +15,7 @@ import image_service_pb2
 import re
 import queue
 import threading
-
+import asyncio
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -86,11 +86,12 @@ class Tracker:
             }
         
         self.events.append(event)
+        asyncio.run(self.processqueue())
         
         #self.queue.put(event)
 
 
-    def processqueue(self):
+    async def processqueue(self):
         if not self.processqueue_status and  self.events is not None:
             while len(self.events)>0 and  self.events is not None:
                 
@@ -98,7 +99,7 @@ class Tracker:
                 try:
                     if not self.issend:
                         event = self.events.pop(0)
-                        self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
+                        await self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
                         event = None
                     else:
                         event = self.events.pop(0)
@@ -180,7 +181,7 @@ class Tracker:
                 
         return match_found , prob
 
-    def pred(self,frame,fn,track,config,det):
+    async def pred(self,frame,fn,track,config,det):
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -220,7 +221,7 @@ class Tracker:
             elif self.config['ocr_grcp']:
                 if not self.issend and frame is not None:
                     json_segment_frame = self.getSegmentFrame(track,frame,det)
-
+                    
                     _, image_bytes = cv2.imencode('.jpg', json_segment_frame['segment_photo'])
                     future_response = self.stub.UploadImage.future(image_service_pb2.ImageUploadRequest(image=image_bytes.tostring()))       
                     response = future_response.result()
@@ -234,7 +235,9 @@ class Tracker:
                
                 if not self.issend:
                     print("Tracker Id: ",self.id )
+                    
                     segment_frame = self.getSegmentFrame(track,frame,det)
+                   
                     x_top = segment_frame['x']
                     y_top = segment_frame['y']
                     width = segment_frame['width']
@@ -254,7 +257,7 @@ class Tracker:
                     for pred_i in result:
                         resul.append(pred_i[0])
                     msg_out = 'EMPTY'
-                    if len(resul)>0 and len(resul)<8:
+                    if len(resul)>0 and len(resul)<20:
                         msg_out = ''
                         for x in resul: 
                             msg_out += x
@@ -264,13 +267,13 @@ class Tracker:
                         self.issend, prob = self.matches_any_regex(msg_out,config["regex"])
                         print(prob,"[PROB]")
                         
-                        self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame)
+                        self.beforeReport(self.issend,msg_out,prob,track,frame,None,segment_frame,det)
                     
 
 
         else:
             pass
-            #print("The selected region is less than 20% of the total area of the frame.")
+            print("The selected region is less than 20% of the total area of the frame.")
         return self.issend
 
     def update(self,track,frame,id,confiden,box_detec):
@@ -289,7 +292,7 @@ class Tracker:
             #self.queue.put(event)
             
             self.events.append(event)
-            self.processqueue()
+            asyncio.run(self.processqueue())
             if len(self.badPrediction)>5:
                 self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
                 self.badPrediction = self.badPrediction[:5]
@@ -307,61 +310,57 @@ class Tracker:
         return self.id
     
     def getSegmentFrame(self,track,frame,det):
-        height_frame, width_frame, _ = frame.shape
-        xcar1, ycar1, xcar2, ycar2 = track
-        xmin, ymin, xmax,ymax, prob = det
-       
-        #segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
-      
+        try:
+            height_frame, width_frame, _ = frame.shape
+            xcar1, ycar1, xcar2, ycar2 = track
+            xmin, ymin, xmax,ymax, prob = det
         
-        xcar1 = xcar1 + self.padding
-        ycar1 = ycar1 + self.padding
-        xcar2 = xcar2 -self.padding
-        ycar2 = ycar2 - self.padding 
+            segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+        
+        
+            
+            xcar1 = xcar1 + self.padding
+            ycar1 = ycar1 + self.padding
+            xcar2 = xcar2 -self.padding
+            ycar2 = ycar2 - self.padding 
 
-        width_rectangle = xcar2 - xcar1
-        height_rectangle = ycar2 - ycar1
+            width_rectangle = xcar2 - xcar1
+            height_rectangle = ycar2 - ycar1
+            
+            xcar1 =max(int(xcar1 - (xcar1*0.03)),0)
+            ycar1 =max(int(ycar1 - (ycar1*0.03)),0)
+            xcar2 =min(int(xcar2 + (xcar2*0.03)),width_frame)
+            ycar2 =min(int(ycar2 + (ycar2*0.03)),height_frame)
+            
+            #print(ycar1,ycar2, xcar1,xcar2)
+            segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
+            
+            #cv2.rectangle(frame, (xcar1, ycar1), (xcar2, ycar2),(0, 255, 255), 2)
+            #cv2.circle(frame, (xcar1, ycar1), 5, (255,0,0), -1)
+            #cv2.imwrite("/opt/alice-media/ocr/after{}.jpg".format(time.time()), segment_photo)
+            
+            #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax),(0, 255, 255), 2)
+            #cv2.rectangle(frame, (xcar1, ycar1), (xcar2, ycar2),(0, 255, 255), 2)
+            
         
-        #segment_photo = frame[ycar1:ycar2, xcar1:xcar2]
-    
-        #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax),(0, 255, 255), 2)
-        # Calculate the center of the square
-        center_x = (xmin + xmax) // 2
-        center_y = (ymin + ymax) // 2
+            x = xcar1
+            y = ycar1
+            w = xcar2 - xcar1
+            h = ycar2 - ycar1
 
-        # Reduce the size of the square by 60%
-        reduction_factor = 0.6
-        new_width = (xmax - xmin) * (1 - reduction_factor)
-        new_height = (ymax - ymin) * (1 - reduction_factor)
-
-        # Calculate new coordinates
-        xmin_new = int(center_x - new_width / 2)
-        ymin_new = int(center_y - new_height / 2)
-        xmax_new = int(center_x + new_width / 2)
-        ymax_new = int(center_y + new_height / 2)
-
-        #cv2.rectangle(frame, (xmin_new, ymin_new), (xmax_new, ymax_new),(0, 255, 255), 2)
-        
-        segment_photo = frame[ymin_new:ymax_new,xmin_new:xmax_new]
-        
-        #cv2.imwrite("/opt/alice-media/ocr/after{}.jpg".format(time.time()), segment_photo)
-        
-        
-        x = xmin_new
-        y = ymin_new
-        w = xmax_new - xmin_new
-        h = ymax_new - ymin_new
-        
-        
-       
-        
-        return {
-            "segment_photo":segment_photo,
-            "x":x,
-            "y":y,
-            "width":w,
-            "height":h
-        }
+            
+            return {
+                "segment_photo":segment_photo,
+                "x":x,
+                "y":y,
+                "width":w,
+                "height":h
+            }
+        except Exception as w:
+            print(w)
+            import traceback
+            traceback.print_exc()
+            
 
     def prepareJson(self,track,frame, segment_frame=None):
         if self.padding is not None:
@@ -436,24 +435,26 @@ class Tracker:
                 
             return datos
    
-    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None):
-        if  len(plate_chars)>3:
-            if issend:
-                self.plate_chars=  plate_chars
-                if getJson is None:
-                    print("HERE")
-                    getJson = self.prepareJson(track,frame,segment_frame)
-                    print("HERE2")
-                    getJson['plate_chars']= self.clearResult(self.plate_chars)
-                #stop
-            
-                self.sendAG(getJson)
+    def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None, det=None):
+        try:
+            if  len(plate_chars)>3:
+                if issend:
+                    self.plate_chars=  plate_chars
+                    if getJson is None:                        
+                        getJson = self.prepareJson(track,frame,segment_frame)                    
+                        getJson['plate_chars']= self.clearResult(self.plate_chars)            
+                    self.sendAG(getJson)
+                else:
+                    
+                    eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson,det)
+                    self.badPrediction.append(eventToqueue)
+                    eventToqueue = None
+                    
             else:
-                eventToqueue = Event(frame,track,prob,plate_chars,segment_frame,getJson)
-                self.badPrediction.append(eventToqueue)
-                eventToqueue = None
-        
-                                 
+                print(plate_chars," plate_chars " , prob)                     
+        except Exception as p :
+            import traceback
+            traceback.print_exc()
         
     def generateFolders(self,full_photo,segment_photo):
         current_date = datetime.now()
@@ -509,7 +510,7 @@ class Tracker:
                     max_prob_event = event
                 elif event.prob == max_prob: 
                     if max_prob_event is None:
-                        max_prob_event = event
+                        max_prob_event = event                        
                     else:
                         if len(event.prediction)>len(max_prob_event.prediction):
                             max_prob_event = event

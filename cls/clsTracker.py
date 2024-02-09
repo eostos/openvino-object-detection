@@ -86,12 +86,13 @@ class Tracker:
             }
         
         self.events.append(event)
-        asyncio.run(self.processqueue())
+        self.processqueue()
+        #asyncio.run(self.processqueue())
+        
         
         #self.queue.put(event)
 
-
-    async def processqueue(self):
+    def processqueue(self):
         if not self.processqueue_status and  self.events is not None:
             while len(self.events)>0 and  self.events is not None:
                 
@@ -99,7 +100,7 @@ class Tracker:
                 try:
                     if not self.issend:
                         event = self.events.pop(0)
-                        await self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
+                        self.pred(event['frame'],event['prediction'],event['track'],event['config'],event['det'])
                         event = None
                     else:
                         event = self.events.pop(0)
@@ -181,7 +182,7 @@ class Tracker:
                 
         return match_found , prob
 
-    async def pred(self,frame,fn,track,config,det):
+    def pred(self,frame,fn,track,config,det):
         xcar1, ycar1, xcar2, ycar2 = track
         # Calculate the area of the rectangle
         width_rectangle = xcar2 - xcar1
@@ -234,7 +235,7 @@ class Tracker:
             elif not self.config['ocr_grcp'] and not self.config['ocr_http']:
                
                 if not self.issend:
-                    print("Tracker Id: ",self.id )
+                    print("Tracker Id: ",self.id,fn )
                     
                     segment_frame = self.getSegmentFrame(track,frame,det)
                    
@@ -292,7 +293,7 @@ class Tracker:
             #self.queue.put(event)
             
             self.events.append(event)
-            asyncio.run(self.processqueue())
+            #asyncio.run(self.processqueue())
             if len(self.badPrediction)>5:
                 self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
                 self.badPrediction = self.badPrediction[:5]
@@ -363,36 +364,15 @@ class Tracker:
             
 
     def prepareJson(self,track,frame, segment_frame=None):
-        if self.padding is not None:
-            height_frame, width_frame, _ = frame.shape
-            xcar1, ycar1, xcar2, ycar2 = track
-            xcar1 = xcar1+self.padding
-            ycar1 = ycar1+self.padding
-            xcar2 = xcar2 -self.padding
-            ycar2 = ycar2 - self.padding 
-
-            width_rectangle = xcar2 - xcar1
-            height_rectangle = ycar2 - ycar1
-
-
-            xmin_padded= max(xcar1-int(width_rectangle/int(self.config['factor_width'])),0)
-            ymin_padded= max(ycar1-int(height_rectangle/int(self.config['factor_height'])),0)
-            xmax_padded= min(xcar2+int(width_rectangle/int(self.config['factor_width'])),width_frame)
-            ymax_padded= min(ycar2+int(height_rectangle/int(self.config['factor_height'])),height_frame)
+        if self.padding is not None and segment_frame is not None :
             
-            if segment_frame is None:
-                segment_photo = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
-            else:
-                segment_photo = segment_frame['segment_photo']
+            segment_photo = segment_frame['segment_photo']
             evidence = self.generateFolders(frame,segment_photo)
 
-            x = xmin_padded
-            y = ymin_padded
-            w = xmax_padded - xmin_padded
-            h = ymax_padded - ymin_padded
-
-            ##print(x,y,w,h,"toocr")
-            ocr = frame[ymin_padded:ymax_padded, xmin_padded:xmax_padded]
+            x = segment_frame['x']
+            y = segment_frame['y']
+            w = segment_frame['width']
+            h = segment_frame['height']
 
             
             deviceId = self.config['device_id']
@@ -437,7 +417,7 @@ class Tracker:
    
     def beforeReport(self,issend, plate_chars,prob,track,frame,getJson = None, segment_frame =None, det=None):
         try:
-            if  len(plate_chars)>3:
+            if  len(plate_chars)>3 and len(plate_chars)<10:
                 if issend:
                     self.plate_chars=  plate_chars
                     if getJson is None:                        

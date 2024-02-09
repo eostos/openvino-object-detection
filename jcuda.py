@@ -39,6 +39,8 @@ from tensorrt_demos.utils.camera import add_camera_args, Camera
 from tensorrt_demos.utils.display import open_window, set_display, show_fps
 from tensorrt_demos.utils.visualization import BBoxVisualization
 from tensorrt_demos.utils.yolo_with_plugins import TrtYOLO
+from cls.queue import Queue
+from cls.ModelEvent import Event
 
 tracker = sort.SORT(max_age=3, min_hits=3, iou_threshold=0.1)
 
@@ -82,6 +84,11 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def set_trackers_async(device, tracks, frame_to_save, prediction, detections_, padding, stub):
+    device.set_trackers(tracks, frame_to_save, prediction, detections_, padding, stub)
+
+
+queue = Queue()
 @profile
 def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,prediction):
    
@@ -152,9 +159,11 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
                 
                 tracks = tracker.get_tracks(2)
                 frame_to_save = img.copy()
-                with ThreadPoolExecutor() as executor:
-                    executor.submit(device.set_trackers, tracks, frame_to_save, prediction, detections_, padding, stub)
-
+                if len(tracks):
+                    ev = Event(frame_to_save,tracks,None,detections_,padding,stub )
+                    queue.enqueue(ev)
+                    
+                    
                 img = vis.draw_bboxes(img, boxes, confs, clss)
                 img = show_fps(img, fps)
                 roi_limits = conf_dict['alter_config']['roi_limits']
@@ -190,51 +199,91 @@ def loop_and_detect(cam, trt_yolo, conf_th, vis, conf_dict,connect_redis,device,
         
         
     print('\nDone.')
+
+if is_running_in_docker():
+    ConfParams = util.getConfigs('/opt/alice-lpr-gpu/config.json',True)
+else:
+    ConfParams = util.getConfigs('./config.json')
+
+if ConfParams is None:
+    ConfParams = util.getConfigs('./config.json')
+    
+    
+if ConfParams:
+    print(ConfParams)
+    # Parse the JSON string into a dictionary
+try:
+    conf_dict = json.loads(ConfParams)
+    device = Device(conf_dict,util.send_video)
+    vid_path = conf_dict['vid_path']
+    debug = conf_dict['debug']
+    ip_redis = conf_dict['ip_redis']
+    port_redis = conf_dict['port_redis']
+    device_id = conf_dict['device_id']
+    country = conf_dict['country']
+    devicearg  = conf_dict['device']
+    ocr_grcp_ip = conf_dict['ocr_grcp_ip']
+    ocr_grcp_port = conf_dict['ocr_grcp_port']
+    ocr_grcp        = conf_dict['ocr_grcp']
+    ocr_http =  conf_dict['ocr_http']
+    model = conf_dict['model']
+    limit_ram = conf_dict['limit_ram']
+except json.JSONDecodeError:
+    print("Error: Failed to parse the configuration parameters.")
+except KeyError:
+    print("Error: 'vid_path' not found in the configuration parameters.")
+
+print("loading REDIS")
+
+
+
+@profile
+def ocr():
+    if  ocr_grcp or ocr_http:
+        prediction = None
+    else:
+        ocr = OCR(country)
+        prediction=ocr.prediction
+        pass
+    while True:
+        
+        if queue.is_empty():
+            time.sleep(0.1)
+        else:
+            if service_ocr and not service_ocr.is_alive():
+                raise RuntimeError("OCR ERROR")
+                
+            eventqueue = queue.dequeue()
+            with ThreadPoolExecutor() as executor:
+                executor.submit(set_trackers_async,
+                                device,
+                                eventqueue.get_tracks(),
+                                eventqueue.get_frame(),
+                                prediction,
+                                eventqueue.get_detections_(),
+                                eventqueue.get_padding(),
+                                eventqueue.get_stub())
+            
+ 
+ 
+connect_redis= redis.Redis(host=ip_redis, port=port_redis)
+
+service_ocr = threading.Thread(target=ocr)
+service_ocr.daemon = True  # Esto hace que el hilo se cierre cuando se cierra el programa principal
+service_ocr.start()
+
 @profile
 def main():
     args = parse_args()
     stub=None
     channel=None
     
-    if is_running_in_docker():
-        ConfParams = util.getConfigs('/opt/alice-lpr-gpu/config.json',True)
-    else:
-        ConfParams = util.getConfigs('./config.json')
-    
-    if ConfParams is None:
-        ConfParams = util.getConfigs('./config.json')
-        
-        
-    if ConfParams:
-        print(ConfParams)
-        # Parse the JSON string into a dictionary
-    try:
-        conf_dict = json.loads(ConfParams)
-        device = Device(conf_dict,util.send_video)
-        vid_path = conf_dict['vid_path']
-        debug = conf_dict['debug']
-        ip_redis = conf_dict['ip_redis']
-        port_redis = conf_dict['port_redis']
-        device_id = conf_dict['device_id']
-        country = conf_dict['country']
-        devicearg  = conf_dict['device']
-        ocr_grcp_ip = conf_dict['ocr_grcp_ip']
-        ocr_grcp_port = conf_dict['ocr_grcp_port']
-        ocr_grcp        = conf_dict['ocr_grcp']
-        ocr_http =  conf_dict['ocr_http']
-        model = conf_dict['model']
-        limit_ram = conf_dict['limit_ram']
-    except json.JSONDecodeError:
-        print("Error: Failed to parse the configuration parameters.")
-    except KeyError:
-        print("Error: 'vid_path' not found in the configuration parameters.")
         
     cap = cv2.VideoCapture(vid_path)
     if not cap.isOpened():
         time.sleep(5)
         raise SystemExit('ERROR: failed to open the input video file!')
-    print("loading REDIS")
-    connect_redis= redis.Redis(host=ip_redis, port=port_redis)
+    
     if  ocr_grcp or ocr_http:
         prediction = None
     else:

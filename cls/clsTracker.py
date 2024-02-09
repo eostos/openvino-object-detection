@@ -327,10 +327,10 @@ class Tracker:
             width_rectangle = xcar2 - xcar1
             height_rectangle = ycar2 - ycar1
             
-            xcar1 =max(int(xcar1 - (xcar1*0.03)),0)
-            ycar1 =max(int(ycar1 - (ycar1*0.03)),0)
-            xcar2 =min(int(xcar2 + (xcar2*0.03)),width_frame)
-            ycar2 =min(int(ycar2 + (ycar2*0.03)),height_frame)
+            xcar1 =max(int(xcar1 - (xcar1*0.05)),0)
+            ycar1 =max(int(ycar1 - (ycar1*0.05)),0)
+            xcar2 =min(int(xcar2 + (xcar2*0.05)),width_frame)
+            ycar2 =min(int(ycar2 + (ycar2*0.05)),height_frame)
             
             #print(ycar1,ycar2, xcar1,xcar2)
             segment_photo = frame[ycar1:ycar2, xcar1:xcar2]

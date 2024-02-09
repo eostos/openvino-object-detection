@@ -418,7 +418,7 @@ def main():
                     cv2.namedWindow("Detection Results", cv2.WINDOW_NORMAL) 
                     cv2.imshow('Detection Results', frame)
                     
-                    key = cv2.waitKey(0)
+                    key = cv2.waitKey(1)
                 continue
                 
                     #ESC_KEY = 27

@@ -176,13 +176,16 @@ class OCR:
 						
 						utils.drawCoord(resz_roi_img, bounds_orig, thickness=1)
 						#print(border,bounds_orig,"//////////////////////////////")
-						bound_lv2 = utils.addBorder(border, bounds_orig, resz_roi_img.shape)
+						if("MN" == self.country):
+							bound_lv2 = utils.addBorderMN(border, bounds_orig, resz_roi_img.shape)
+						else : 
+							bound_lv2 = utils.addBorder(border, bounds_orig, resz_roi_img.shape)
 						#print(bound_lv2,"bound_lv2      222222222222222222222222222222222222222222222")
 						# OBTAIN PLATE FOR LEVEL 2 DETECTION
 						#plate_lv2 = full_plate_draw[bound_lv2[1]:bound_lv2[0],bound_lv2[3]:bound_lv2[2]].copy()
 						#crop_img = img[y:y+h, x:x+w]
 						plate_lv2 = roi_img_draw[bound_lv2[1]:bound_lv2[3],bound_lv2[0]:bound_lv2[2]].copy()
-						#cv2.imwrite("/opt/alice-media/ocr/{}.jpg".format(utils.current_milli_time()), plate_lv2)
+						#cv2.imwrite("plate_cutted_{}.jpg".format(utils.current_milli_time()), plate_lv2)
 						# PERFORM A HIGH QUALITY RESIZE
 						resz_plate_lv2 = cv2.resize(plate_lv2, (net_size_X,net_size_Y), interpolation=cv2.INTER_CUBIC)
 						# SAVE FOR DEBUG
@@ -191,7 +194,7 @@ class OCR:
 						#time.sleep(0.001)
 						# PERFORM THE SECOND DETECTION
 						detections_pre = utils.platePredict(net, classNames, resz_plate_lv2, USE_GPU)
-						#print(detections,"seconds detections ..............................................")
+						#print(detections_pre," Seconds detections ..............................................")
 						filtered_inside_plate_boxes = utils.filter_bounding_boxes_inside_plate(detections_pre,net_size_X,"PLATE")
 						#print(filtered_inside_plate_boxes,"After cleaning ..............................................")
 						detections = utils.removePlate(filtered_inside_plate_boxes)
@@ -281,9 +284,10 @@ class OCR:
 		# ORDER
 		#print(detections,"removing *******************************************************")
 		if len(detections)>0:
+			#print(detections, "  BEFORE OVERLAPING")
 			detections = removeOverlap(detections, overlap=0.5)
 			dets_order = orderChars(detections,self.country)
-			print(dets_order,"dets_order *************************************************")
+			#print(dets_order,"dets_order *************************************************")
 
 			# REMOVE OVERLAPPED AND LOW QUALITY PLATES
 			#print("before overlaping", dets_order)

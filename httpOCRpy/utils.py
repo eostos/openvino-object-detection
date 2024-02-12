@@ -20,7 +20,7 @@ from loguru import logger
 from concurrent.futures import process
 from loguru._logger import start_time
 
-DEBUG_HERE = False
+DEBUG_HERE = True
 
 def read_msg():
 	connection = pika.BlockingConnection()
@@ -414,6 +414,7 @@ def platePredict(MYNET, classNames, detection_img, USE_GPU=False):
 								cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
 				#print (label)
 	### SAVE AN EVIDENCE IMAGE
+	#cv2.imwrite("./ocr-pure-{}.jpg".format(current_milli_time()), detection_img)
 	return dets
 """
 	parts = []
@@ -459,18 +460,22 @@ logger.info(coord)
 # RESULTS	
 return predict_rs,confidence_rs,coord_rs
 """
-def filter_bounding_boxes_inside_plate(detections, target_label='PLATE'):
+def filter_bounding_boxes_inside_plate(detections, image_width,target_label='PLATE'):
+    print("INPUT FOR FILTER BOXES ",detections)
     plate_boxes = [box for box in detections if box[0] == target_label]
     
     if not plate_boxes:
-        return []  # No 'PLATE' boxes found, return empty list
+        return detections  # No 'PLATE' boxes found, return empty list
     
     # Sort 'PLATE' boxes by area in descending order
     plate_boxes.sort(key=lambda box: (box[2][2] - box[2][0]) * (box[2][3] - box[2][1]), reverse=True)
     
     plate_box = plate_boxes[0][2]  # Choose the box with the largest area
-    
+    x, y, w, h = plate_box
+    if(w >image_width*0.80):
+       return detections
     filtered_boxes = [box for box in detections if box[0] != target_label and is_inside(box[2], plate_box)]
+    print("FILTERED BOXES ",filtered_boxes)
     return filtered_boxes
 
 def is_inside(box, plate_box):
@@ -662,14 +667,59 @@ def addBorder(ratio, bound, maxBorder):
 	if DEBUG_HERE: print("aspect ",aspect_ratio)
 	# INITIAL X_RATIO AND Y_RATIO
 	x_ratio, y_ratio = ratio, ratio
-	if(aspect_ratio>2):
+	if(aspect_ratio> 2):
 		# IF THE PLATE IS TOO WIDE, Y_RATIO MUST CHANGE
 		# CALC THE NEW Y_RATIO
 		width2 = width*(1+2*ratio)
 		height2 = width2/ri
 		y_ratio = (height2/height - 1)/2
 		if DEBUG_HERE: print("x_ratio ", x_ratio)
-	elif(aspect_ratio <= 2):
+	if(aspect_ratio>= 1.5 and aspect_ratio<=2   ):
+		# IF THE PLATE IS NOT TOO WIDE, X_RATIO MUST CHANGE
+		ratio *=1
+		x_ratio, y_ratio = ratio, ratio
+		# CALC THE NEW X_RATIO
+		height2 = height*(1+2*ratio)
+		width2 = height2*ri
+		x_ratio = (width2/width - 1)/2
+		if DEBUG_HERE: print("y_ratio ", y_ratio)
+	if(aspect_ratio<1.5):
+		y_ratio = 0.05
+		x_ratio = 0.05
+	#
+	x_top = int(bound[0]-width*x_ratio)
+	y_top = int(bound[1]-height*y_ratio)
+	x_bot = int(bound[2]+width*x_ratio)
+	y_bot = int(bound[3]+height*y_ratio)
+	if(x_top < 0): x_top=0
+	if(y_top < 0): y_top=0
+	if(x_bot >= maxBorder[1]): x_bot = maxBorder[1] - 1
+	if(y_bot >= maxBorder[0]): y_bot = maxBorder[0] - 1
+	#
+	#bound_ext = [x_top,y_top,x_bot,y_bot]
+	bound_ext = [x_top,y_top,x_bot,y_bot]
+	if DEBUG_HERE: print("bound_out ",bound_ext)
+	return bound_ext
+def addBorderMN(ratio, bound, maxBorder):
+	ri = 2
+	if DEBUG_HERE: print("Max Shape ",maxBorder)
+	if DEBUG_HERE: print("bound in", bound)
+	# GET INITIAL PARAMETERS
+	width = bound[2] - bound[0]
+	height = bound[3] - bound[1]
+	#print(width,height,"width height ****************************")
+	aspect_ratio = width / height
+	if DEBUG_HERE: print("aspect ",aspect_ratio)
+	# INITIAL X_RATIO AND Y_RATIO
+	x_ratio, y_ratio = ratio, ratio
+	if(aspect_ratio> 2):
+		# IF THE PLATE IS TOO WIDE, Y_RATIO MUST CHANGE
+		# CALC THE NEW Y_RATIO
+		width2 = width*(1+2*ratio)
+		height2 = width2/ri
+		y_ratio = (height2/height - 1)/2
+		if DEBUG_HERE: print("x_ratio ", x_ratio)
+	elif(aspect_ratio<=2):
 		# IF THE PLATE IS NOT TOO WIDE, X_RATIO MUST CHANGE
 		ratio *=1
 		x_ratio, y_ratio = ratio, ratio
@@ -696,6 +746,7 @@ def addBorder(ratio, bound, maxBorder):
 def orderChars(dets,country):
 	# CONTAINER CONTENT: dets (nameTag, confidence, (x, y, width, height))
 	# CHECK LENGTH
+	print("[BEFORE ORDER CHARS : ]",dets)
 	N_BOXES = len(dets)
 	if N_BOXES==0:
 		print('EMPTY DETS! Nothing to order here.')
@@ -703,6 +754,7 @@ def orderChars(dets,country):
 	# GET CONC BOXES
 	random.shuffle(dets)
 	CONC_BOXES = [det_i[2] for det_i in dets]
+	print(CONC_BOXES,)
 	ALL_WIDS = [box_i[2] for box_i in CONC_BOXES]
 	ALL_HEIS = [box_i[3] for box_i in CONC_BOXES]
 	# CALC AVG_WIDTH & AVG_HEIGHT
@@ -743,34 +795,29 @@ def orderChars(dets,country):
 
 
 def findNextIndexCR(dets, RESULT, AVG_WID, AVG_HEI):
-	IDX_next = -1
-	if len(RESULT)==0:
-		# FIND THE FIRST LETTER (CLOSES TO THE ORIGIN)
-		IDX_next = getFirstChar_Index(dets)
-	else:
-		# OBTAIN THE LAST BOX IN THE TEMPORAL RESULT
-		last_box = RESULT[-1][2]
-		prev_dx = 1e5
-		prev_dy = prev_dx
-		for i in range(len(dets)):
-			#find next letter index
-			box_i_x, box_i_y = dets[i][2][0] , dets[i][2][1]
-			last_x, last_y = last_box[0] , last_box[1]
-			new_dx = box_i_x - last_x
-			new_dy = box_i_y - last_y
-			# FIND ITS CLOSEST LETTER DOWN THAT HAS NOT BEEN ORDERED
-			# IF NOT REMOVED FROM 'dets', IT CAN REPEAT THE PREVIOUS LETTER.
-			if (0 <= new_dy and new_dy < prev_dy):
-				# BUT DONT ACCEPT LETTERS THAT ARE TOO DISTANT IN THE X COORDINATE
-				if (new_dx < AVG_WID/2):
-					IDX_next = i
-					prev_dx = new_dx
-					prev_dy = new_dy
-		# JUMP TO THE NEXT ROW IF THERE ARE PENDING LETTERS
-		if IDX_next==-1:
-			IDX_next = getFirstChar_Index(dets)
+    IDX_next = -1
+    if len(RESULT) == 0:
+        # FIND THE FIRST LETTER (CLOSEST TO THE ORIGIN)
+        IDX_next = getFirstChar_Index(dets)
+    else:
+        # OBTAIN THE LAST BOX IN THE TEMPORAL RESULT
+        last_box = RESULT[-1][2]
+        prev_dx = 1e5
+        for i in range(len(dets)):
+            # Find the next letter index
+            box_i_x, box_i_y = dets[i][2][0], dets[i][2][1]
+            last_x, last_y = last_box[0], last_box[1]
+            new_dx = box_i_x - last_x
+            # FIND ITS CLOSEST LETTER TO THE RIGHT THAT HAS NOT BEEN ORDERED
+            # IF NOT REMOVED FROM 'dets', IT CAN REPEAT THE PREVIOUS LETTER.
+            if 0 <= new_dx < prev_dx:
+                IDX_next = i
+                prev_dx = new_dx
+        # JUMP TO THE NEXT LINE IF THERE ARE PENDING LETTERS
+        if IDX_next == -1:
+            IDX_next = getFirstChar_Index(dets)
 
-	return IDX_next
+    return IDX_next
 
 def findNextIndex(dets, RESULT, AVG_WID, AVG_HEI):
 	IDX_next = -1

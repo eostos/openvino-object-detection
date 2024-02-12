@@ -194,6 +194,7 @@ def draw_detections(frame, detections, palette, labels, output_transform):
         xmin, ymin, xmax, ymax = detection.get_coords()
         xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
         cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
+        print("WIDTH : ",xmax-xmin,"HEIGHT",ymax-ymin)
         cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
                     (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
         if isinstance(detection, DetectionWithLandmarks):
@@ -267,6 +268,7 @@ def ocr():
                 
             eventqueue = queue.dequeue()
             with ThreadPoolExecutor() as executor:
+                print(eventqueue.get_tracks())
                 executor.submit(set_trackers_async,
                                 device,
                                 eventqueue.get_tracks(),
@@ -275,6 +277,8 @@ def ocr():
                                 eventqueue.get_detections_(),
                                 eventqueue.get_padding(),
                                 eventqueue.get_stub())
+                
+
             
         
         
@@ -434,6 +438,7 @@ def detector():
                     print("error ",e)
                     traceback.print_exc()
                 tracks = tracker.get_tracks(2)
+                print(tracks, "  TRACKS")
                 if len(tracks):
                     ev = Event(sendframe,tracks,None,detections_,padding,stub )
                     queue.enqueue(ev)

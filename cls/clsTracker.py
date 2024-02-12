@@ -280,7 +280,7 @@ class Tracker:
     def update(self,track,frame,id,confiden,box_detec):
         self.confiden=float(confiden)
         self.box_detec=box_detec
-        
+        print("ID TRACK : " , self.id,"  ",confiden ," BOUND : ", box_detec)
         if not self.issend:
             event = {
                 'frame': frame,
@@ -293,7 +293,7 @@ class Tracker:
             #self.queue.put(event)
             
             self.events.append(event)
-            #asyncio.run(self.processqueue())
+            self.processqueue()
             if len(self.badPrediction)>5:
                 self.badPrediction = sorted(self.badPrediction, key=lambda event: event.prob, reverse=True)
                 self.badPrediction = self.badPrediction[:5]
@@ -338,7 +338,7 @@ class Tracker:
             
             #cv2.rectangle(frame, (xcar1, ycar1), (xcar2, ycar2),(0, 255, 255), 2)
             #cv2.circle(frame, (xcar1, ycar1), 5, (255,0,0), -1)
-            #cv2.imwrite("/opt/alice-media/ocr/after{}.jpg".format(time.time()), segment_photo)
+            #cv2.imwrite("./after{}.jpg".format(time.time()), segment_photo)
             
             #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax),(0, 255, 255), 2)
             #cv2.rectangle(frame, (xcar1, ycar1), (xcar2, ycar2),(0, 255, 255), 2)
@@ -358,7 +358,7 @@ class Tracker:
                 "height":h
             }
         except Exception as w:
-            print(w)
+            print(w, " Exception ")
             import traceback
             traceback.print_exc()
             

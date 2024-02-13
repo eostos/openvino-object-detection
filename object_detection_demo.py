@@ -353,6 +353,7 @@ def detector():
         ###
 
         track_history = defaultdict(lambda: [])
+        print("VERSION 2024-13-02")
         while True:
             
             start_time = time.time()

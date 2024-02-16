@@ -18,17 +18,16 @@ RUN DEBIAN_FRONTEND="noninteractive" TZ="America/Bogota"  apt install -y -qq bui
         pkg-config \
         libavcodec-dev \
         libavformat-dev \
-        libswscale-dev jq
+        libswscale-dev       
 
 # Set root password
 #RUN apt -y -qq install libeigen3-dev
 
 RUN apt install -y -qq software-properties-common nano
 RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"
-#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32
-RUN apt-key adv --refresh-keys --keyserver keyserver.ubuntu.com
-RUN apt update
-RUN apt install libjasper1 libjasper-dev
+RUN apt-get update
+RUN apt install -y jq
+RUN apt install -y libjasper1 libjasper-dev 
 RUN apt install -y 
 RUN apt-get update && apt-get install -y --no-install-recommends curl gpg gpg-agent
 RUN curl https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
@@ -41,6 +40,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends intel-opencl-ic
 #RUN usermod --password $(echo root | openssl passwd -1 -stdin) root
 
 WORKDIR /opt
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libgtk2.0-dev \
+    pkg-config \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    python3-numpy \
+    && rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/opencv/opencv.git /opencv && \
     cd /opencv && \
     git checkout 4.9.0
@@ -75,7 +83,7 @@ RUN ls
 RUN cp config.json /opt/alice-lpr-cpu/
 RUN echo "Installing requirements"
 RUN python3 -m pip install  -r requirements.txt 
-RUN chmod +x entrypoint.sh
 
-# Set the default command for the container
-ENTRYPOINT ["/opt/alice-object/entrypoint.sh"]
+
+#ENTRYPOINT ["sh","start.sh"]
+ENTRYPOINT ["sh", "-c", "while true; do sleep 3600; done"]
